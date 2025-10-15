@@ -5,7 +5,7 @@ import { usersTable } from "@/db/schema";
 export async function GET() {
   try {
     const allUsers = await db.select().from(usersTable);
-    return NextResponse.json({ allUsers });
+    return NextResponse.json(allUsers); // <- array, easy to map
   } catch (err) {
     console.error("DB error:", err);
     return NextResponse.json(

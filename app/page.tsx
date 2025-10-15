@@ -1,23 +1,29 @@
-"use client";
-import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+
+import {
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs";
 
 export default function Home() {
-  const [data, setData] = useState([]);
-
-  useEffect(() => {
-    fetch("/api/users")
-      .then((res) => res.json())
-      .then((data) => setData(data));
-  }, []);
-
   return (
     <div>
-      {data.map((user: any) => (
-        <div key={user.id}>
-          <h2>{user.name}</h2>
-          <p>{user.email}</p>
-        </div>
-      ))}
+      <header className="flex justify-end items-center p-4 gap-4 h-16">
+        <SignedOut>
+          <SignInButton>
+            <Button variant={"ghost"}>Sign In</Button>
+          </SignInButton>
+          <SignUpButton>
+            <Button variant={"ghost"}>Sign Up</Button>
+          </SignUpButton>
+        </SignedOut>
+        <SignedIn>
+          <UserButton />
+        </SignedIn>
+      </header>
     </div>
   );
 }
