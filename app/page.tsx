@@ -14,10 +14,10 @@ export default function Home() {
       <header className="flex justify-end items-center p-4 gap-4 h-16">
         <SignedOut>
           <SignInButton>
-            <Button variant={"ghost"}>Sign In</Button>
+            <Button variant={"regular"}>Sign In</Button>
           </SignInButton>
           <SignUpButton>
-            <Button variant={"ghost"}>Sign Up</Button>
+            <Button variant={"regular"}>Sign Up</Button>
           </SignUpButton>
         </SignedOut>
         <SignedIn>
