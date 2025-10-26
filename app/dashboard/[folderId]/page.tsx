@@ -18,6 +18,16 @@ interface Folder {
   created_at: string;
 }
 
+interface Whiteboard {
+  id: number;
+  folder_id: number;
+  user_id: number;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface Note {
   id: number;
   folder_id: number;
@@ -36,10 +46,13 @@ export default function FolderDetailPage() {
 
   const [folder, setFolder] = useState<Folder | null>(null);
   const [subfolders, setSubfolders] = useState<Folder[]>([]);
+  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
+  const [isWhiteboardDialogOpen, setIsWhiteboardDialogOpen] = useState(false);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [newWhiteboardTitle, setNewWhiteboardTitle] = useState('');
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,6 +69,20 @@ export default function FolderDetailPage() {
         }
       } catch (error) {
         console.error('Failed to fetch folder:', error);
+      }
+    };
+
+    const fetchWhiteboards = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await fetch(`/api/whiteboards?folder_id=${folderId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setWhiteboards(data.whiteboards || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch whiteboards:', error);
       }
     };
 
@@ -76,6 +103,7 @@ export default function FolderDetailPage() {
     };
 
     fetchFolderData();
+    fetchWhiteboards();
     fetchNotes();
   }, [user, folderId]);
 
@@ -107,13 +135,47 @@ export default function FolderDetailPage() {
     }
   };
 
-  const handleCreateNote = async () => {
-    if (!newNoteTitle.trim()) {
+  const handleCreateWhiteboard = async () => {
+    if (!newWhiteboardTitle.trim()) {
       return;
     }
 
     // Create empty Excalidraw data
     const emptyContent = JSON.stringify({ elements: [], appState: {} });
+
+    try {
+      const response = await fetch('/api/whiteboards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          folder_id: parseInt(folderId),
+          title: newWhiteboardTitle,
+          content: emptyContent
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWhiteboards([...whiteboards, data.whiteboard]);
+        setNewWhiteboardTitle('');
+        setIsWhiteboardDialogOpen(false);
+        // Navigate to the whiteboard editor
+        router.push(`/whiteboards/${data.whiteboard.id}`);
+      }
+    } catch (error) {
+      console.error('Failed to create whiteboard:', error);
+    }
+  };
+
+  const handleCreateNote = async () => {
+    if (!newNoteTitle.trim()) {
+      return;
+    }
+
+    // Create empty TipTap content
+    const emptyContent = JSON.stringify({ type: 'doc', content: [] });
 
     try {
       const response = await fetch('/api/notes', {
@@ -237,6 +299,43 @@ export default function FolderDetailPage() {
             </DialogContent>
           </Dialog>
 
+          <Dialog open={isWhiteboardDialogOpen} onOpenChange={setIsWhiteboardDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" variant="outline">
+                <Plus className="w-5 h-5" />
+                Create Whiteboard
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Whiteboard</DialogTitle>
+                <DialogDescription>
+                  Add a new whiteboard to this folder
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Input
+                  placeholder="Whiteboard title"
+                  value={newWhiteboardTitle}
+                  onChange={(e) => setNewWhiteboardTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateWhiteboard();
+                    }
+                  }}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsWhiteboardDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateWhiteboard}>
+                  Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2" variant="outline">
@@ -311,6 +410,39 @@ export default function FolderDetailPage() {
               </div>
             )}
 
+            {/* Whiteboards Section */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Whiteboards</h2>
+              {whiteboards.length === 0 ? (
+                <div className="text-center py-20 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50/50">
+                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No whiteboards yet</h3>
+                  <p className="text-muted-foreground mb-6">Create your first whiteboard to get started</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {whiteboards.map((whiteboard) => (
+                    <Link key={whiteboard.id} href={`/whiteboards/${whiteboard.id}`}>
+                      <Card className="p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group hover:border-blue-300">
+                        <div className="flex items-start gap-4">
+                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform">
+                            <FileText className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-lg text-gray-900 mb-2">{whiteboard.title}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Updated {formatDate(whiteboard.updated_at)}
+                            </p>
+                          </div>
+                          <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Notes Section */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Notes</h2>
@@ -324,9 +456,9 @@ export default function FolderDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {notes.map((note) => (
                     <Link key={note.id} href={`/notes/${note.id}`}>
-                      <Card className="p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group hover:border-blue-300">
+                      <Card className="p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group hover:border-green-300">
                         <div className="flex items-start gap-4">
-                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform">
+                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 group-hover:scale-110 transition-transform">
                             <FileText className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -335,7 +467,7 @@ export default function FolderDetailPage() {
                               Updated {formatDate(note.updated_at)}
                             </p>
                           </div>
-                          <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                          <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors" />
                         </div>
                       </Card>
                     </Link>

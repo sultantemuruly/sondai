@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { notes, users, folders } from "@/db/schema";
+import { whiteboards, users, folders } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-// Get all notes for a specific folder
+// Get all whiteboards for a specific folder
 export async function GET(req: NextRequest) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -45,24 +45,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Get all notes for this folder
-    const folderNotes = await db
+    // Get all whiteboards for this folder
+    const folderWhiteboards = await db
       .select()
-      .from(notes)
-      .where(and(eq(notes.folder_id, parseInt(folderId)), eq(notes.user_id, userId)))
-      .orderBy(notes.updated_at);
+      .from(whiteboards)
+      .where(and(eq(whiteboards.folder_id, parseInt(folderId)), eq(whiteboards.user_id, userId)))
+      .orderBy(whiteboards.updated_at);
 
-    return NextResponse.json({ notes: folderNotes }, { status: 200 });
+    return NextResponse.json({ whiteboards: folderWhiteboards }, { status: 200 });
   } catch (err) {
     console.error("Database error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch notes" },
+      { error: "Failed to fetch whiteboards" },
       { status: 500 }
     );
   }
 }
 
-// Create a new note
+// Create a new whiteboard
 export async function POST(req: NextRequest) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Content should be a JSON string with TipTap data
+    // Content should be a JSON string with Excalidraw data
     const contentData = typeof content === "string" ? content : JSON.stringify(content || {});
     
     const dbUser = await db
@@ -114,9 +114,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Create the note
-    const [newNote] = await db
-      .insert(notes)
+    // Create the whiteboard
+    const [newWhiteboard] = await db
+      .insert(whiteboards)
       .values({
         folder_id: parseInt(folder_id),
         user_id: userId,
@@ -125,11 +125,11 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json({ note: newNote }, { status: 201 });
+    return NextResponse.json({ whiteboard: newWhiteboard }, { status: 201 });
   } catch (err: any) {
     console.error("Database error:", err);
     return NextResponse.json(
-      { error: "Failed to create note" },
+      { error: "Failed to create whiteboard" },
       { status: 500 }
     );
   }

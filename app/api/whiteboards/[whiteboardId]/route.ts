@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { notes, users } from "@/db/schema";
+import { whiteboards, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-// Update a note
+// Update a whiteboard
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ noteId: string }> }
+  { params }: { params: Promise<{ whiteboardId: string }> }
 ) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -18,7 +18,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { noteId } = await params;
+    const { whiteboardId } = await params;
     const body = await req.json();
     const { title, content } = body;
 
@@ -34,18 +34,18 @@ export async function PATCH(
 
     const userId = dbUser[0].id;
 
-    // Verify that the note belongs to the user
-    const noteExists = await db
+    // Verify that the whiteboard belongs to the user
+    const whiteboardExists = await db
       .select()
-      .from(notes)
-      .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)))
+      .from(whiteboards)
+      .where(and(eq(whiteboards.id, parseInt(whiteboardId)), eq(whiteboards.user_id, userId)))
       .limit(1);
 
-    if (noteExists.length === 0) {
-      return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    if (whiteboardExists.length === 0) {
+      return NextResponse.json({ error: "Whiteboard not found" }, { status: 404 });
     }
 
-    // Update the note
+    // Update the whiteboard
     const updateData: any = {
       updated_at: new Date(),
     };
@@ -58,26 +58,26 @@ export async function PATCH(
       updateData.content = typeof content === "string" ? content : JSON.stringify(content);
     }
 
-    const [updatedNote] = await db
-      .update(notes)
+    const [updatedWhiteboard] = await db
+      .update(whiteboards)
       .set(updateData)
-      .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)))
+      .where(and(eq(whiteboards.id, parseInt(whiteboardId)), eq(whiteboards.user_id, userId)))
       .returning();
 
-    return NextResponse.json({ note: updatedNote }, { status: 200 });
+    return NextResponse.json({ whiteboard: updatedWhiteboard }, { status: 200 });
   } catch (err: any) {
     console.error("Database error:", err);
     return NextResponse.json(
-      { error: "Failed to update note" },
+      { error: "Failed to update whiteboard" },
       { status: 500 }
     );
   }
 }
 
-// Get a single note
+// Get a single whiteboard
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ noteId: string }> }
+  { params }: { params: Promise<{ whiteboardId: string }> }
 ) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -86,7 +86,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { noteId } = await params;
+    const { whiteboardId } = await params;
 
     const dbUser = await db
       .select({ id: users.id })
@@ -100,22 +100,22 @@ export async function GET(
 
     const userId = dbUser[0].id;
 
-    // Get the note
-    const note = await db
+    // Get the whiteboard
+    const whiteboard = await db
       .select()
-      .from(notes)
-      .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)))
+      .from(whiteboards)
+      .where(and(eq(whiteboards.id, parseInt(whiteboardId)), eq(whiteboards.user_id, userId)))
       .limit(1);
 
-    if (note.length === 0) {
-      return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    if (whiteboard.length === 0) {
+      return NextResponse.json({ error: "Whiteboard not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ note: note[0] }, { status: 200 });
+    return NextResponse.json({ whiteboard: whiteboard[0] }, { status: 200 });
   } catch (err) {
     console.error("Database error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch note" },
+      { error: "Failed to fetch whiteboard" },
       { status: 500 }
     );
   }
