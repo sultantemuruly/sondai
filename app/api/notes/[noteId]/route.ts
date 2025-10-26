@@ -120,3 +120,55 @@ export async function GET(
     );
   }
 }
+
+// Delete a note
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ noteId: string }> }
+) {
+  try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { noteId } = await params;
+
+    const dbUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_id, clerkUserId))
+      .limit(1);
+
+    if (dbUser.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const userId = dbUser[0].id;
+
+    // Verify that the note belongs to the user
+    const note = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)))
+      .limit(1);
+
+    if (note.length === 0) {
+      return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    }
+
+    // Delete the note
+    await db
+      .delete(notes)
+      .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)));
+
+    return NextResponse.json({ message: "Note deleted" }, { status: 200 });
+  } catch (err) {
+    console.error("Database error:", err);
+    return NextResponse.json(
+      { error: "Failed to delete note" },
+      { status: 500 }
+    );
+  }
+}

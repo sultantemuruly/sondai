@@ -16,8 +16,7 @@ import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Link as LinkIcon } from 'lucide-react'
-import katex from 'katex'
-import 'katex/dist/katex.css'
+import { toast } from 'sonner'
 
 interface Note {
   id: number;
@@ -46,6 +45,7 @@ export default function NoteEditorPage() {
   const [textColor, setTextColor] = useState('#000000');
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
+  const mathFieldRef = useRef<any>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -174,15 +174,15 @@ export default function NoteEditorPage() {
         const data = await response.json();
         setNote(data.note);
         setHasChanges(false);
-        alert('Note saved!');
+        toast.success('Note saved!');
       } else {
         const error = await response.json();
         console.error('Failed to save:', error);
-        alert('Failed to save note');
+        toast.error('Failed to save note');
       }
     } catch (error) {
       console.error('Failed to save note:', error);
-      alert('Failed to save note');
+      toast.error('Failed to save note');
     } finally {
       setIsSaving(false);
     }
@@ -253,27 +253,22 @@ export default function NoteEditorPage() {
     editor?.chain().focus().setColor(color).run();
   };
 
+
   const handleInsertMath = () => {
-    if (mathEquation.trim()) {
-      try {
-        // Validate the LaTeX equation by trying to render it
-        katex.renderToString(mathEquation);
-        
-        // Insert the equation wrapped in special markers
-        const mathBlock = `$$${mathEquation}$$`;
-        editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).insertContent({
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: mathBlock
-          }]
-        }).run();
-        
-        setShowMathDialog(false);
-        setMathEquation('');
-      } catch (error) {
-        alert('Invalid math equation. Please check your LaTeX syntax.');
-      }
+    const equation = mathEquation;
+    
+    if (equation.trim()) {
+      // Insert the equation as a block
+      editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).insertContent({
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: equation
+        }]
+      }).run();
+      
+      setShowMathDialog(false);
+      setMathEquation('');
     }
   };
 
@@ -500,10 +495,13 @@ export default function NoteEditorPage() {
 
       {/* Math Equation Dialog */}
       {showMathDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Math Equation Editor</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowMathDialog(false); setMathEquation(''); }}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 rounded-t-xl">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Math Equation Editor</h2>
+                <p className="text-sm text-gray-600 mt-1">Type your equation naturally - no syntax needed!</p>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -511,74 +509,101 @@ export default function NoteEditorPage() {
                   setShowMathDialog(false);
                   setMathEquation('');
                 }}
+                className="hover:bg-white/80"
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
             
             <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter LaTeX equation:
+              {/* Editor Section */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  ✨ Your Equation:
                 </label>
                 <Input
                   type="text"
                   value={mathEquation}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMathEquation(e.target.value)}
-                  placeholder="e.g., x^2 + y^2 = z^2"
-                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === 'Enter') {
-                      handleInsertMath();
-                    }
-                  }}
+                  placeholder="Type your equation... (e.g., x^2 + 5x + 6)"
+                  className="text-lg font-mono"
+                  autoFocus
                 />
+                {mathEquation && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-blue-200">
+                    <p className="text-xs font-medium text-gray-600 mb-2">Equation:</p>
+                    <div className="text-lg font-mono text-gray-800">
+                      {mathEquation}
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 mt-2">
-                  Examples: x^2, fractions with \frac, roots with \sqrt, sums with \sum
+                  💡 Type LaTeX syntax (e.g., x^2 for squared, fraction for division, sqrt for square root)
                 </p>
               </div>
 
-              {mathEquation && (
-                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Preview:</p>
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: katex.renderToString(mathEquation, { throwOnError: false })
-                    }}
-                  />
-                </div>
-              )}
-
-              <div className="border-t border-gray-200 pt-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Common Symbols:</h3>
-                <div className="grid grid-cols-6 gap-2">
+              {/* Quick Examples */}
+              <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">🚀 Quick Examples:</h3>
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { symbol: '+', code: '+' },
-                    { symbol: '-', code: '-' },
-                    { symbol: '×', code: '\\times' },
-                    { symbol: '÷', code: '\\div' },
-                    { symbol: '²', code: '^2' },
-                    { symbol: '√', code: '\\sqrt{x}' },
-                    { symbol: '∑', code: '\\sum' },
-                    { symbol: '∫', code: '\\int' },
-                    { symbol: 'α', code: '\\alpha' },
-                    { symbol: 'β', code: '\\beta' },
-                    { symbol: 'π', code: '\\pi' },
-                    { symbol: '∞', code: '\\infty' },
+                    { label: 'Quadratic', equation: 'x^2 + 5x + 6 = 0' },
+                    { label: 'Integral', equation: '\\int x^2 dx' },
+                    { label: 'Fraction', equation: '\\frac{a}{b} + c' },
+                    { label: 'Sum', equation: '\\sum_{i=1}^{n} i' },
+                  ].map((ex, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setMathEquation(ex.equation);
+                      }}
+                      className="text-left px-3 py-2 bg-white/80 hover:bg-white rounded border border-purple-300 transition-all hover:shadow-sm"
+                    >
+                      <div className="text-xs font-medium text-purple-700">{ex.label}</div>
+                      <div className="text-xs text-gray-600 truncate">{ex.equation}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Symbol Buttons */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">🔣 Quick Insert:</h3>
+                <div className="grid grid-cols-8 gap-2">
+                  {[
+                    { symbol: '+', name: 'Plus' },
+                    { symbol: '-', name: 'Minus' },
+                    { symbol: '×', name: 'Multiply' },
+                    { symbol: '÷', name: 'Divide' },
+                    { symbol: '²', name: 'Square' },
+                    { symbol: '√', name: 'Sqrt' },
+                    { symbol: '∑', name: 'Sum' },
+                    { symbol: '∫', name: 'Integral' },
+                    { symbol: 'α', name: 'Alpha' },
+                    { symbol: 'β', name: 'Beta' },
+                    { symbol: 'π', name: 'Pi' },
+                    { symbol: '∞', name: 'Infinity' },
+                    { symbol: '≤', name: 'Less eq' },
+                    { symbol: '≥', name: 'Great eq' },
+                    { symbol: '≈', name: 'Approx' },
+                    { symbol: '≠', name: 'Not eq' },
                   ].map((item, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setMathEquation(mathEquation + item.code)}
-                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm transition-colors"
-                      title={item.code}
+                      onClick={() => {
+                        setMathEquation(mathEquation + item.symbol);
+                      }}
+                      className="p-2 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded text-center transition-all hover:shadow-sm"
+                      title={item.name}
                     >
-                      {item.symbol}
+                      <span className="text-lg">{item.symbol}</span>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
+            <div className="flex items-center justify-end gap-3 p-6 bg-gray-50 border-t border-gray-200 rounded-b-xl">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -588,7 +613,10 @@ export default function NoteEditorPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleInsertMath}>
+              <Button 
+                onClick={handleInsertMath}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
                 Insert Equation
               </Button>
             </div>

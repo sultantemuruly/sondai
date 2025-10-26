@@ -120,3 +120,55 @@ export async function GET(
     );
   }
 }
+
+// Delete a whiteboard
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ whiteboardId: string }> }
+) {
+  try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { whiteboardId } = await params;
+
+    const dbUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.clerk_id, clerkUserId))
+      .limit(1);
+
+    if (dbUser.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const userId = dbUser[0].id;
+
+    // Verify that the whiteboard belongs to the user
+    const whiteboard = await db
+      .select()
+      .from(whiteboards)
+      .where(and(eq(whiteboards.id, parseInt(whiteboardId)), eq(whiteboards.user_id, userId)))
+      .limit(1);
+
+    if (whiteboard.length === 0) {
+      return NextResponse.json({ error: "Whiteboard not found" }, { status: 404 });
+    }
+
+    // Delete the whiteboard
+    await db
+      .delete(whiteboards)
+      .where(and(eq(whiteboards.id, parseInt(whiteboardId)), eq(whiteboards.user_id, userId)));
+
+    return NextResponse.json({ message: "Whiteboard deleted" }, { status: 200 });
+  } catch (err) {
+    console.error("Database error:", err);
+    return NextResponse.json(
+      { error: "Failed to delete whiteboard" },
+      { status: 500 }
+    );
+  }
+}

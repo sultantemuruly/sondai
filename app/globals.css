@@ -253,3 +253,19 @@
   background-color: #f3f4f6;
   border-radius: 0.25rem;
 }
+
+/* MathLive styles */
+math-field {
+  font-size: 18px;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: white;
+}
+
+math-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
