@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/folders - Get all folders for the current user
+// Get all folders for the current user
 export async function GET() {
   try {
     const { userId: clerkUserId } = await auth();
@@ -15,7 +15,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user from database
     const dbUser = await db
       .select({ id: users.id })
       .from(users)
@@ -45,7 +44,7 @@ export async function GET() {
   }
 }
 
-// POST /api/folders - Create a new folder
+// Create a new folder
 export async function POST(req: NextRequest) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -63,8 +62,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Get user from database
+    
     const dbUser = await db
       .select({ id: users.id })
       .from(users)
