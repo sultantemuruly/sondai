@@ -8,6 +8,20 @@
       "when": 1761207408917,
       "tag": "0000_sharp_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761486469588,
+      "tag": "0001_add_notes_and_parent_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761487353058,
+      "tag": "0002_yellow_paladin",
+      "breakpoints": true
     }
   ]
 }

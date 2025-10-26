@@ -12,6 +12,7 @@ import { Folder, Plus, ArrowLeft, Sparkles } from 'lucide-react'
 interface Folder {
   id: number;
   user_id: number;
+  parent_id: number | null;
   name: string;
   created_at: string;
 }
@@ -192,19 +193,21 @@ const Dashboard = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {folders.map((folder) => (
-              <Card key={folder.id} className="p-6 hover:shadow-xl transition-all cursor-pointer group hover:border-blue-300 border-2 bg-gradient-to-br from-white to-gray-50">
-                <div className="flex items-start gap-4">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform shadow-lg">
-                    <Folder className="w-6 h-6 text-white" />
+              <Link key={folder.id} href={`/dashboard/${folder.id}`}>
+                <Card className="p-6 hover:shadow-xl transition-all cursor-pointer group hover:border-blue-300 border-2 bg-gradient-to-br from-white to-gray-50">
+                  <div className="flex items-start gap-4">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform shadow-lg">
+                      <Folder className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg text-gray-900 mb-2 truncate">{folder.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Created {formatDate(folder.created_at)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-gray-900 mb-2 truncate">{folder.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Created {formatDate(folder.created_at)}
-                    </p>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             ))}
           </div>
         )}
