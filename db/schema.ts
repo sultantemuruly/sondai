@@ -36,3 +36,17 @@ export const notes = pgTable("notes", {
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const files = pgTable("files", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  folder_id: integer("folder_id").references(() => folders.id).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  name: varchar("name", { length: 512 }).notNull(),
+  original_name: varchar("original_name", { length: 512 }).notNull(),
+  file_type: varchar("file_type", { length: 128 }).notNull(), // e.g., pdf, docx, jpeg
+  size: integer("size").notNull(), // File size in bytes
+  azure_blob_name: varchar("azure_blob_name", { length: 512 }).notNull(), // Azure blob identifier
+  url: varchar("url", { length: 1024 }).notNull(), // SAS URL or public URL
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});

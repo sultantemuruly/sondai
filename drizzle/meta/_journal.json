@@ -22,6 +22,13 @@
       "when": 1761487353058,
       "tag": "0002_yellow_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1761595410651,
+      "tag": "0003_cold_drax",
+      "breakpoints": true
     }
   ]
 }
