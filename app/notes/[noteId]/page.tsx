@@ -20,6 +20,7 @@ import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Link as L
 import { toast } from 'sonner'
 import 'katex/dist/katex.min.css'
 import { MathEditorDialog } from '@/components/math-editor-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface Note {
   id: number;
@@ -48,6 +49,8 @@ export default function NoteEditorPage() {
   const [textColor, setTextColor] = useState('#000000');
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
   const [customFontSize, setCustomFontSize] = useState('16');
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -275,10 +278,7 @@ export default function NoteEditorPage() {
     }},
     { icon: Code, label: 'Divider', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).setHorizontalRule().run() },
     { icon: LinkIcon, label: 'Link', command: () => {
-      const url = window.prompt('Enter URL:');
-      if (url) {
-        editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).setLink({ href: url }).run();
-      }
+      setShowLinkDialog(true);
     }},
   ];
 
@@ -334,6 +334,25 @@ export default function NoteEditorPage() {
   };
 
   const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 56, 64, 72];
+
+  const handleInsertLink = () => {
+    if (linkUrl.trim()) {
+      // Add protocol if missing
+      let url = linkUrl.trim();
+      if (!url.match(/^https?:\/\//)) {
+        url = 'https://' + url;
+      }
+      
+      editor?.chain().focus().deleteRange({ 
+        from: editor.state.selection.$head.pos - 1, 
+        to: editor.state.selection.$head.pos 
+      }).setLink({ href: url }).run();
+      
+      setLinkUrl('');
+      setShowLinkDialog(false);
+      toast.success('Link inserted!');
+    }
+  };
 
   const toggleBold = () => {
     editor?.chain().focus().toggleBold().run();
@@ -705,6 +724,42 @@ export default function NoteEditorPage() {
         onInsert={handleInsertMath}
         initialLatex={mathLatex}
       />
+
+      {/* Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Insert Link</DialogTitle>
+            <DialogDescription>
+              Enter the URL you want to link to
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="https://example.com or example.com"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleInsertLink();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleInsertLink}
+              disabled={!linkUrl.trim()}
+            >
+              Insert Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
