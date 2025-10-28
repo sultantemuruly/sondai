@@ -5,7 +5,7 @@ import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
-import { ArrowLeft, Save, Bold, Italic, Underline, Highlighter, Palette, Type, Calculator, Plus, Minus, X } from 'lucide-react'
+import { ArrowLeft, Save, Bold, Italic, Underline, Highlighter, Palette, Type, Calculator, Plus, Minus, X, Type as TypeIcon, Hash, List as ListIcon, ListOrdered as ListOrderedIcon, Quote as QuoteIcon, Code as CodeIcon, Minus as HorizontalRuleIcon, Link2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -15,8 +15,9 @@ import Highlight from '@tiptap/extension-highlight'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
+import TextAlign from '@tiptap/extension-text-align'
 import { Mathematics } from '@tiptap/extension-mathematics'
-import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Link as LinkIcon } from 'lucide-react'
+import { Heading1, Heading2, Heading3, List, ListOrdered } from 'lucide-react'
 import { toast } from 'sonner'
 import 'katex/dist/katex.min.css'
 import { MathEditorDialog } from '@/components/math-editor-dialog'
@@ -106,6 +107,9 @@ export default function NoteEditorPage() {
       }),
       Color,
       FontFamily,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
       LinkExtension.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -271,14 +275,20 @@ export default function NoteEditorPage() {
     { icon: Heading3, label: 'Heading 3', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleHeading({ level: 3 }).run() },
     { icon: List, label: 'Bullet List', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleBulletList().run() },
     { icon: ListOrdered, label: 'Numbered List', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleOrderedList().run() },
-    { icon: Quote, label: 'Blockquote', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleBlockquote().run() },
-    { icon: Code, label: 'Code Block', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleCodeBlock().run() },
+    { icon: QuoteIcon, label: 'Blockquote', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleBlockquote().run() },
+    { icon: CodeIcon, label: 'Code Block', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).toggleCodeBlock().run() },
     { icon: Calculator, label: 'Math Equation', command: () => {
       setShowMathDialog(true);
     }},
-    { icon: Code, label: 'Divider', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).setHorizontalRule().run() },
-    { icon: LinkIcon, label: 'Link', command: () => {
+    { icon: HorizontalRuleIcon, label: 'Divider', command: () => editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).setHorizontalRule().run() },
+    { icon: Link2, label: 'Link', command: () => {
       setShowLinkDialog(true);
+    }},
+    { icon: TypeIcon, label: 'Font Size', command: () => {
+      setShowFontSizeMenu(true);
+    }},
+    { icon: Palette, label: 'Text Color', command: () => {
+      setShowColorPicker(true);
     }},
   ];
 
@@ -368,6 +378,18 @@ export default function NoteEditorPage() {
 
   const toggleHighlight = () => {
     editor?.chain().focus().toggleHighlight().run();
+  };
+
+  const setAlignLeft = () => {
+    editor?.chain().focus().setTextAlign('left').run();
+  };
+
+  const setAlignCenter = () => {
+    editor?.chain().focus().setTextAlign('center').run();
+  };
+
+  const setAlignRight = () => {
+    editor?.chain().focus().setTextAlign('right').run();
   };
 
   const setColor = (color: string) => {
@@ -500,6 +522,128 @@ export default function NoteEditorPage() {
               title="Highlight"
             >
               <Highlighter className="w-4 h-4" />
+            </Button>
+            
+            <div className="w-px h-6 bg-gray-300 mx-2" />
+            
+            {/* Structure Tools */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+              className={editor.isActive('heading', { level: 1 }) ? 'bg-gray-100' : ''}
+              title="Heading 1"
+            >
+              <Hash className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={editor.isActive('heading', { level: 2 }) ? 'bg-gray-100' : ''}
+              title="Heading 2"
+            >
+              H2
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+              className={editor.isActive('heading', { level: 3 }) ? 'bg-gray-100' : ''}
+              title="Heading 3"
+            >
+              H3
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              className={editor.isActive('bulletList') ? 'bg-gray-100' : ''}
+              title="Bullet List"
+            >
+              <ListIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              className={editor.isActive('orderedList') ? 'bg-gray-100' : ''}
+              title="Numbered List"
+            >
+              <ListOrderedIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+              className={editor.isActive('blockquote') ? 'bg-gray-100' : ''}
+              title="Blockquote"
+            >
+              <QuoteIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+              className={editor.isActive('codeBlock') ? 'bg-gray-100' : ''}
+              title="Code Block"
+            >
+              <CodeIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowMathDialog(true)}
+              title="Math Equation"
+            >
+              <Calculator className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+              title="Divider"
+            >
+              <HorizontalRuleIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowLinkDialog(true)}
+              title="Insert Link"
+            >
+              <Link2 className="w-4 h-4" />
+            </Button>
+            
+            <div className="w-px h-6 bg-gray-300 mx-2" />
+            
+            {/* Text Alignment */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={setAlignLeft}
+              className={editor.isActive({ textAlign: 'left' }) ? 'bg-gray-100' : ''}
+              title="Align Left"
+            >
+              <AlignLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={setAlignCenter}
+              className={editor.isActive({ textAlign: 'center' }) ? 'bg-gray-100' : ''}
+              title="Align Center"
+            >
+              <AlignCenter className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={setAlignRight}
+              className={editor.isActive({ textAlign: 'right' }) ? 'bg-gray-100' : ''}
+              title="Align Right"
+            >
+              <AlignRight className="w-4 h-4" />
             </Button>
             
             <div className="w-px h-6 bg-gray-300 mx-2" />
