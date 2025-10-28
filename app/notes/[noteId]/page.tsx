@@ -46,6 +46,8 @@ export default function NoteEditorPage() {
   const [mathLatex, setMathLatex] = useState('');
   const [currentFontSize, setCurrentFontSize] = useState(16);
   const [textColor, setTextColor] = useState('#000000');
+  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
+  const [customFontSize, setCustomFontSize] = useState('16');
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +130,10 @@ export default function NoteEditorPage() {
           setShowSlashMenu(true);
         } else if (event.key === 'Escape') {
           setShowSlashMenu(false);
+        } else if ((event.key === ' ' || event.key === 'Enter') && showSlashMenu) {
+          // Close slash menu on space or Enter without executing
+          event.preventDefault();
+          setShowSlashMenu(false);
         }
       },
     },
@@ -140,6 +146,9 @@ export default function NoteEditorPage() {
       if (!target.closest('.color-picker-container')) {
         setShowColorPicker(false);
       }
+      if (!target.closest('.font-size-container')) {
+        setShowFontSizeMenu(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -148,6 +157,47 @@ export default function NoteEditorPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (editor) {
+      const updateCurrentFontSize = () => {
+        const { from, to } = editor.state.selection;
+        let foundSize = 16;
+        let hasSize = false;
+        
+        // Check marks at the cursor or selection
+        const $pos = editor.state.doc.resolve(from);
+        const marks = $pos.marks();
+        
+        marks.forEach(mark => {
+          if (mark.type.name === 'textStyle' && mark.attrs.fontSize) {
+            const sizeStr = mark.attrs.fontSize.replace('px', '');
+            const size = parseInt(sizeStr);
+            if (!isNaN(size)) {
+              foundSize = size;
+              hasSize = true;
+            }
+          }
+        });
+        
+        if (foundSize !== currentFontSize && hasSize) {
+          setCurrentFontSize(foundSize);
+          setCustomFontSize(foundSize.toString());
+        } else if (!hasSize && currentFontSize !== 16) {
+          // No font size set, use default
+          setCurrentFontSize(16);
+          setCustomFontSize('16');
+        }
+      };
+      
+      editor.on('selectionUpdate', updateCurrentFontSize);
+      editor.on('update', updateCurrentFontSize);
+      
+      return () => {
+        editor.off('selectionUpdate', updateCurrentFontSize);
+        editor.off('update', updateCurrentFontSize);
+      };
+    }
+  }, [editor, currentFontSize]);
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -248,6 +298,42 @@ export default function NoteEditorPage() {
     setCurrentFontSize(newSize);
     editor?.chain().focus().setMark('textStyle', { fontSize: `${newSize}px` }).run();
   };
+
+  const setFontSize = (size: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    console.log('Setting font size to:', size);
+    setCurrentFontSize(size);
+    setCustomFontSize(size.toString());
+    
+    // Apply the font size to selection
+    if (editor && editor.isEditable) {
+      editor.chain().focus().setMark('textStyle', { fontSize: `${size}px` }).run();
+      console.log('Font size applied');
+    }
+    
+    setShowFontSizeMenu(false);
+  };
+
+  const handleCustomFontSize = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCustomFontSize(value);
+    const numValue = parseInt(value);
+    if (!isNaN(numValue) && numValue >= 8 && numValue <= 400) {
+      setFontSize(numValue);
+    }
+  };
+
+  const handleCustomFontSizeBlur = () => {
+    const numValue = parseInt(customFontSize);
+    if (!isNaN(numValue) && numValue >= 8 && numValue <= 400) {
+      setFontSize(numValue);
+    } else {
+      setCustomFontSize(currentFontSize.toString());
+    }
+    setShowFontSizeMenu(false);
+  };
+
+  const fontSizes = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 48, 56, 64, 72];
 
   const toggleBold = () => {
     editor?.chain().focus().toggleBold().run();
@@ -400,23 +486,96 @@ export default function NoteEditorPage() {
             <div className="w-px h-6 bg-gray-300 mx-2" />
             
             {/* Font Size Controls */}
-            <div className="flex items-center gap-1 border border-gray-300 rounded px-1">
+            <div className="flex items-center gap-1 font-size-container">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={decreaseFontSize}
                 title="Decrease Font Size"
-                className="h-7 w-7 p-0"
+                className="h-8 w-8 p-0"
               >
                 <Minus className="w-3 h-3" />
               </Button>
-              <span className="text-sm font-medium min-w-[50px] text-center">{currentFontSize}px</span>
+              
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowFontSizeMenu(!showFontSizeMenu)}
+                  title="Font Size"
+                  className="h-8 px-2 flex items-center gap-2 min-w-[70px] justify-center border border-gray-300"
+                >
+                  <Type className="w-4 h-4" />
+                  <span className="text-sm font-medium">{currentFontSize}</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </Button>
+                
+                {showFontSizeMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-48 max-h-[400px] overflow-y-auto">
+                  {/* Custom Input */}
+                  <div className="p-3 border-b border-gray-200">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Custom Size (8-400)</label>
+                    <input
+                      type="number"
+                      min="8"
+                      max="400"
+                      value={customFontSize}
+                      onChange={handleCustomFontSize}
+                      onBlur={handleCustomFontSizeBlur}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      placeholder="e.g. 16"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  {/* Predefined Sizes */}
+                  <div className="p-2">
+                    <div className="grid grid-cols-2 gap-1">
+                      {fontSizes.map((size) => (
+                        <button
+                          key={size}
+                          onClick={(e) => setFontSize(size, e)}
+                          className={`px-2 py-1 text-sm text-left hover:bg-gray-100 rounded ${
+                            currentFontSize === size ? 'bg-blue-50 text-blue-700 font-semibold' : ''
+                          }`}
+                        >
+                          {size}px
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Common Actions */}
+                  <div className="p-2 border-t border-gray-200">
+                    <button
+                      onClick={(e) => setFontSize(currentFontSize - 2, e)}
+                      disabled={currentFontSize <= 8}
+                      className="w-full px-2 py-1 text-sm text-left hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Minus className="w-3 h-3" />
+                      Smaller
+                    </button>
+                    <button
+                      onClick={(e) => setFontSize(currentFontSize + 2, e)}
+                      disabled={currentFontSize >= 72}
+                      className="w-full px-2 py-1 text-sm text-left hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Larger
+                    </button>
+                  </div>
+                </div>
+              )}
+              </div>
+              
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={increaseFontSize}
                 title="Increase Font Size"
-                className="h-7 w-7 p-0"
+                className="h-8 w-8 p-0"
               >
                 <Plus className="w-3 h-3" />
               </Button>
