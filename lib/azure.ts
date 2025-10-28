@@ -113,3 +113,68 @@ export async function deleteFileFromAzure(blobName: string): Promise<void> {
   await blockBlobClient.deleteIfExists();
 }
 
+/**
+ * Upload text content to Azure Blob Storage (for notes and whiteboards)
+ */
+export async function uploadTextContentToAzure(
+  content: string,
+  userId: number,
+  folderId: number,
+  type: 'note' | 'whiteboard',
+  itemId?: number
+): Promise<{ blobName: string; url: string }> {
+  if (!containerClient) {
+    throw new Error('Azure Storage is not configured');
+  }
+
+  const timestamp = Date.now();
+  const uniqueId = itemId || timestamp;
+  const blobName = `${type}s/${userId}/${folderId}/${uniqueId}.json`;
+
+  // Convert content to buffer
+  const buffer = Buffer.from(content, 'utf-8');
+
+  // Upload the content
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  await blockBlobClient.upload(buffer, buffer.length, {
+    blobHTTPHeaders: {
+      blobContentType: 'application/json',
+    },
+  });
+
+  // Generate SAS URL for secure access
+  const url = generateSASUrl(blobName);
+
+  return { blobName, url };
+}
+
+/**
+ * Get text content from Azure Blob Storage
+ */
+export async function getTextContentFromAzure(blobName: string): Promise<string> {
+  if (!containerClient) {
+    throw new Error('Azure Storage is not configured');
+  }
+
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+  const downloadResponse = await blockBlobClient.download();
+  
+  if (!downloadResponse.readableStreamBody) {
+    throw new Error('Failed to download blob content');
+  }
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of downloadResponse.readableStreamBody) {
+    chunks.push(Buffer.from(chunk));
+  }
+  
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+/**
+ * Delete text content from Azure Blob Storage
+ */
+export async function deleteTextContentFromAzure(blobName: string): Promise<void> {
+  return deleteFileFromAzure(blobName);
+}
+

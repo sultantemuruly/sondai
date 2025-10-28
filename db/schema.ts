@@ -22,7 +22,8 @@ export const whiteboards = pgTable("whiteboards", {
   folder_id: integer("folder_id").references(() => folders.id).notNull(),
   user_id: integer("user_id").references(() => users.id).notNull(),
   title: varchar("title", { length: 256 }).notNull(),
-  content: text("content").notNull(), // Excalidraw elements and appState as JSON
+  azure_blob_name: varchar("azure_blob_name", { length: 512 }).notNull(), // Azure blob identifier for content
+  url: varchar("url", { length: 1024 }).notNull(), // SAS URL or public URL
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -32,7 +33,8 @@ export const notes = pgTable("notes", {
   folder_id: integer("folder_id").references(() => folders.id).notNull(),
   user_id: integer("user_id").references(() => users.id).notNull(),
   title: varchar("title", { length: 256 }).notNull(),
-  content: text("content").notNull(), // TipTap JSON content
+  azure_blob_name: varchar("azure_blob_name", { length: 512 }).notNull(), // Azure blob identifier for content
+  url: varchar("url", { length: 1024 }).notNull(), // SAS URL or public URL
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });

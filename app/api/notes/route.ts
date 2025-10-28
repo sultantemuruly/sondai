@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { notes, users, folders } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { uploadTextContentToAzure } from "@/lib/azure";
 
 export const dynamic = "force-dynamic";
 
@@ -114,18 +115,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Create the note
+    // First create the note in the database to get the ID
     const [newNote] = await db
       .insert(notes)
       .values({
         folder_id: parseInt(folder_id),
         user_id: userId,
         title: title.trim(),
-        content: contentData,
+        azure_blob_name: '', // Temporary
+        url: '', // Temporary
       })
       .returning();
 
-    return NextResponse.json({ note: newNote }, { status: 201 });
+    // Upload content to Azure
+    const { blobName, url } = await uploadTextContentToAzure(
+      contentData,
+      userId,
+      parseInt(folder_id),
+      'note',
+      newNote.id
+    );
+
+    // Update the note with blob information
+    const [updatedNote] = await db
+      .update(notes)
+      .set({
+        azure_blob_name: blobName,
+        url: url,
+      })
+      .where(eq(notes.id, newNote.id))
+      .returning();
+
+    return NextResponse.json({ note: updatedNote }, { status: 201 });
   } catch (err: any) {
     console.error("Database error:", err);
     return NextResponse.json(

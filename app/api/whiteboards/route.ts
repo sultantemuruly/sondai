@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { whiteboards, users, folders } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { uploadTextContentToAzure } from "@/lib/azure";
 
 export const dynamic = "force-dynamic";
 
@@ -114,18 +115,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Create the whiteboard
+    // First create the whiteboard in the database to get the ID
     const [newWhiteboard] = await db
       .insert(whiteboards)
       .values({
         folder_id: parseInt(folder_id),
         user_id: userId,
         title: title.trim(),
-        content: contentData,
+        azure_blob_name: '', // Temporary
+        url: '', // Temporary
       })
       .returning();
 
-    return NextResponse.json({ whiteboard: newWhiteboard }, { status: 201 });
+    // Upload content to Azure
+    const { blobName, url } = await uploadTextContentToAzure(
+      contentData,
+      userId,
+      parseInt(folder_id),
+      'whiteboard',
+      newWhiteboard.id
+    );
+
+    // Update the whiteboard with blob information
+    const [updatedWhiteboard] = await db
+      .update(whiteboards)
+      .set({
+        azure_blob_name: blobName,
+        url: url,
+      })
+      .where(eq(whiteboards.id, newWhiteboard.id))
+      .returning();
+
+    return NextResponse.json({ whiteboard: updatedWhiteboard }, { status: 201 });
   } catch (err: any) {
     console.error("Database error:", err);
     return NextResponse.json(

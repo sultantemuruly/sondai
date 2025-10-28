@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { notes, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { uploadTextContentToAzure, getTextContentFromAzure, deleteTextContentFromAzure } from "@/lib/azure";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function PATCH(
 
     const userId = dbUser[0].id;
 
-    // Verify that the note belongs to the user
+    // Verify that the note belongs to the user and get existing data
     const noteExists = await db
       .select()
       .from(notes)
@@ -45,6 +46,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
+    const existingNote = noteExists[0];
+
     // Update the note
     const updateData: any = {
       updated_at: new Date(),
@@ -54,8 +57,21 @@ export async function PATCH(
       updateData.title = title.trim();
     }
 
+    // If content is being updated, upload to Azure
     if (content !== undefined) {
-      updateData.content = typeof content === "string" ? content : JSON.stringify(content);
+      const contentData = typeof content === "string" ? content : JSON.stringify(content);
+      
+      // Upload updated content to Azure (using the same blob path)
+      const { blobName, url } = await uploadTextContentToAzure(
+        contentData,
+        userId,
+        existingNote.folder_id,
+        'note',
+        existingNote.id
+      );
+      
+      updateData.azure_blob_name = blobName;
+      updateData.url = url;
     }
 
     const [updatedNote] = await db
@@ -111,7 +127,24 @@ export async function GET(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ note: note[0] }, { status: 200 });
+    const noteData = note[0];
+    
+    // Fetch content from Azure
+    try {
+      const content = await getTextContentFromAzure(noteData.azure_blob_name);
+      return NextResponse.json({ 
+        note: {
+          ...noteData,
+          content: content
+        } 
+      }, { status: 200 });
+    } catch (error) {
+      console.error("Failed to fetch content from Azure:", error);
+      return NextResponse.json({ 
+        note: noteData,
+        error: "Failed to fetch content" 
+      }, { status: 200 });
+    }
   } catch (err) {
     console.error("Database error:", err);
     return NextResponse.json(
@@ -147,7 +180,7 @@ export async function DELETE(
 
     const userId = dbUser[0].id;
 
-    // Verify that the note belongs to the user
+    // Verify that the note belongs to the user and get blob info
     const note = await db
       .select()
       .from(notes)
@@ -158,7 +191,14 @@ export async function DELETE(
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
-    // Delete the note
+    // Delete content from Azure
+    try {
+      await deleteTextContentFromAzure(note[0].azure_blob_name);
+    } catch (error) {
+      console.error("Failed to delete content from Azure:", error);
+    }
+
+    // Delete the note from database
     await db
       .delete(notes)
       .where(and(eq(notes.id, parseInt(noteId)), eq(notes.user_id, userId)));

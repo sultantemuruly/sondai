@@ -29,6 +29,13 @@
       "when": 1761595410651,
       "tag": "0003_cold_drax",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1761614553000,
+      "tag": "0004_add_azure_storage_for_notes_whiteboards",
+      "breakpoints": true
     }
   ]
 }
