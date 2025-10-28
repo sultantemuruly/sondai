@@ -34,6 +34,9 @@ export default function RootLayout({
       }}
     >
       <html lang="en">
+        <head>
+          <link rel="stylesheet" href="/mathlive-static.css" />
+        </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >

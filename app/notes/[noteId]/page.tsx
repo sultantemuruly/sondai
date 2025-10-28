@@ -15,8 +15,11 @@ import Highlight from '@tiptap/extension-highlight'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
+import { Mathematics } from '@tiptap/extension-mathematics'
 import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Link as LinkIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import 'katex/dist/katex.min.css'
+import { MathEditorDialog } from '@/components/math-editor-dialog'
 
 interface Note {
   id: number;
@@ -40,12 +43,11 @@ export default function NoteEditorPage() {
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMathDialog, setShowMathDialog] = useState(false);
-  const [mathEquation, setMathEquation] = useState('');
+  const [mathLatex, setMathLatex] = useState('');
   const [currentFontSize, setCurrentFontSize] = useState(16);
   const [textColor, setTextColor] = useState('#000000');
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
   const editorRef = useRef<HTMLDivElement>(null);
-  const mathFieldRef = useRef<any>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -53,6 +55,27 @@ export default function NoteEditorPage() {
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+      }),
+      Mathematics.configure({
+        inlineOptions: {
+          onClick: (node, pos) => {
+            // Open dialog to edit math node
+            const currentLatex = node.attrs.latex || '';
+            setMathLatex(currentLatex);
+            setShowMathDialog(true);
+          },
+        },
+        blockOptions: {
+          onClick: (node, pos) => {
+            // Open dialog to edit block math
+            const currentLatex = node.attrs.latex || '';
+            setMathLatex(currentLatex);
+            setShowMathDialog(true);
+          },
+        },
+        katexOptions: {
+          throwOnError: false,
         },
       }),
       UnderlineExtension,
@@ -124,6 +147,7 @@ export default function NoteEditorPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -254,21 +278,20 @@ export default function NoteEditorPage() {
   };
 
 
-  const handleInsertMath = () => {
-    const equation = mathEquation;
+  const handleInsertMath = (latex: string) => {
+    if (!editor) return;
     
-    if (equation.trim()) {
-      // Insert the equation as a block
-      editor?.chain().focus().deleteRange({ from: editor.state.selection.$head.pos - 1, to: editor.state.selection.$head.pos }).insertContent({
-        type: 'paragraph',
-        content: [{
-          type: 'text',
-          text: equation
-        }]
-      }).run();
+    if (latex.trim()) {
+      // Insert inline math using the official TipTap Mathematics extension
+      editor.commands.deleteRange({ 
+        from: editor.state.selection.from - 1, 
+        to: editor.state.selection.to 
+      });
       
-      setShowMathDialog(false);
-      setMathEquation('');
+      editor.commands.insertInlineMath({ latex });
+      
+      setMathLatex('');
+      toast.success('Math equation inserted!');
     }
   };
 
@@ -436,8 +459,31 @@ export default function NoteEditorPage() {
                   </div>
                   <div className="border-t border-gray-200 pt-3 mt-3">
                     <p className="text-xs text-gray-600 mb-2">Quick Colors</p>
-                    <div className="grid grid-cols-6 gap-2">
-                      {['#000000', '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#64748B', '#E11D48'].map((color) => (
+                    <div className="grid grid-cols-8 gap-2">
+                      {/* Expanded color palette with richer colors */}
+                      {[
+                        // Grayscale
+                        '#000000', '#1F2937', '#4B5563', '#6B7280', '#9CA3AF', '#D1D5DB', '#F3F4F6',
+                        // Reds
+                        '#DC2626', '#EF4444', '#F87171', '#FCA5A5',
+                        // Oranges
+                        '#EA580C', '#F97316', '#FB923C', '#FDBA74',
+                        // Yellows
+                        '#CA8A04', '#FBBF24', '#FCD34D', '#FDE68A',
+                        // Greens
+                        '#059669', '#10B981', '#34D399', '#6EE7B7',
+                        // Blues
+                        '#0369A1', '#3B82F6', '#60A5FA', '#93C5FD',
+                        // Purples
+                        '#7C3AED', '#8B5CF6', '#A78BFA', '#C4B5FD',
+                        // Pinks
+                        '#DB2777', '#EC4899', '#F472B6', '#F9A8D4',
+                        // Teals
+                        '#0D9488', '#14B8A6', '#2DD4BF', '#5EEAD4',
+                        // Indigos
+                        '#4F46E5', '#6366F1', '#818CF8', '#A5B4FC',
+                        '#7C2D12', '#991B1B', '#166534', '#065F46', '#1E40AF', '#312E81', '#581C87', '#831843'
+                      ].map((color) => (
                         <button
                           key={color}
                           onClick={() => setColor(color)}
@@ -493,136 +539,13 @@ export default function NoteEditorPage() {
         )}
       </div>
 
-      {/* Math Equation Dialog */}
-      {showMathDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowMathDialog(false); setMathEquation(''); }}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 rounded-t-xl">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Math Equation Editor</h2>
-                <p className="text-sm text-gray-600 mt-1">Type your equation naturally - no syntax needed!</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowMathDialog(false);
-                  setMathEquation('');
-                }}
-                className="hover:bg-white/80"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            
-            <div className="p-6">
-              {/* Editor Section */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  ✨ Your Equation:
-                </label>
-                <Input
-                  type="text"
-                  value={mathEquation}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMathEquation(e.target.value)}
-                  placeholder="Type your equation... (e.g., x^2 + 5x + 6)"
-                  className="text-lg font-mono"
-                  autoFocus
-                />
-                {mathEquation && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-blue-200">
-                    <p className="text-xs font-medium text-gray-600 mb-2">Equation:</p>
-                    <div className="text-lg font-mono text-gray-800">
-                      {mathEquation}
-                    </div>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 Type LaTeX syntax (e.g., x^2 for squared, fraction for division, sqrt for square root)
-                </p>
-              </div>
-
-              {/* Quick Examples */}
-              <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">🚀 Quick Examples:</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Quadratic', equation: 'x^2 + 5x + 6 = 0' },
-                    { label: 'Integral', equation: '\\int x^2 dx' },
-                    { label: 'Fraction', equation: '\\frac{a}{b} + c' },
-                    { label: 'Sum', equation: '\\sum_{i=1}^{n} i' },
-                  ].map((ex, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setMathEquation(ex.equation);
-                      }}
-                      className="text-left px-3 py-2 bg-white/80 hover:bg-white rounded border border-purple-300 transition-all hover:shadow-sm"
-                    >
-                      <div className="text-xs font-medium text-purple-700">{ex.label}</div>
-                      <div className="text-xs text-gray-600 truncate">{ex.equation}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Symbol Buttons */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">🔣 Quick Insert:</h3>
-                <div className="grid grid-cols-8 gap-2">
-                  {[
-                    { symbol: '+', name: 'Plus' },
-                    { symbol: '-', name: 'Minus' },
-                    { symbol: '×', name: 'Multiply' },
-                    { symbol: '÷', name: 'Divide' },
-                    { symbol: '²', name: 'Square' },
-                    { symbol: '√', name: 'Sqrt' },
-                    { symbol: '∑', name: 'Sum' },
-                    { symbol: '∫', name: 'Integral' },
-                    { symbol: 'α', name: 'Alpha' },
-                    { symbol: 'β', name: 'Beta' },
-                    { symbol: 'π', name: 'Pi' },
-                    { symbol: '∞', name: 'Infinity' },
-                    { symbol: '≤', name: 'Less eq' },
-                    { symbol: '≥', name: 'Great eq' },
-                    { symbol: '≈', name: 'Approx' },
-                    { symbol: '≠', name: 'Not eq' },
-                  ].map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setMathEquation(mathEquation + item.symbol);
-                      }}
-                      className="p-2 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded text-center transition-all hover:shadow-sm"
-                      title={item.name}
-                    >
-                      <span className="text-lg">{item.symbol}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 p-6 bg-gray-50 border-t border-gray-200 rounded-b-xl">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowMathDialog(false);
-                  setMathEquation('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleInsertMath}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              >
-                Insert Equation
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Visual Math Editor Dialog */}
+      <MathEditorDialog
+        isOpen={showMathDialog}
+        onClose={() => setShowMathDialog(false)}
+        onInsert={handleInsertMath}
+        initialLatex={mathLatex}
+      />
     </div>
   )
 }
