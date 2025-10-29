@@ -120,7 +120,7 @@ export async function uploadTextContentToAzure(
   content: string,
   userId: number,
   folderId: number,
-  type: 'note' | 'whiteboard',
+  type: 'note' | 'whiteboard' | 'flashcard_group',
   itemId?: number
 ): Promise<{ blobName: string; url: string }> {
   if (!containerClient) {

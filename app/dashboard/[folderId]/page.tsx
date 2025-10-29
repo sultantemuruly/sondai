@@ -8,9 +8,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
-import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File } from 'lucide-react'
+import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { FlashcardGeneratorDialog } from '@/components/flashcard-generator-dialog'
 
 interface Folder {
   id: number;
@@ -58,6 +59,17 @@ interface UploadedFile {
   type?: 'file';
 }
 
+interface FlashcardGroup {
+  id: number;
+  folder_id: number;
+  user_id: number;
+  name: string;
+  flashcard_count: number;
+  created_at: string;
+  updated_at: string;
+  type?: 'flashcard_group';
+}
+
 export default function FolderDetailPage() {
   const { user } = useUser();
   const params = useParams();
@@ -69,10 +81,12 @@ export default function FolderDetailPage() {
   const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [flashcardGroups, setFlashcardGroups] = useState<FlashcardGroup[]>([]);
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
   const [isWhiteboardDialogOpen, setIsWhiteboardDialogOpen] = useState(false);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
+  const [isFlashcardGeneratorOpen, setIsFlashcardGeneratorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
@@ -80,7 +94,7 @@ export default function FolderDetailPage() {
   const [newWhiteboardTitle, setNewWhiteboardTitle] = useState('');
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'folder' | 'whiteboard' | 'note' | 'file', id: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'folder' | 'whiteboard' | 'note' | 'file' | 'flashcard_group', id: number } | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
@@ -143,10 +157,25 @@ export default function FolderDetailPage() {
       }
     };
 
+    const fetchFlashcardGroups = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await fetch(`/api/flashcards?folder_id=${folderId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setFlashcardGroups(data.flashcard_groups || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch flashcard groups:', error);
+      }
+    };
+
     fetchFolderData();
     fetchWhiteboards();
     fetchNotes();
     fetchFiles();
+    fetchFlashcardGroups();
   }, [user, folderId]);
 
   const handleCreateSubfolder = async () => {
@@ -251,9 +280,22 @@ export default function FolderDetailPage() {
     }
   };
 
-  const handleDelete = (type: 'folder' | 'whiteboard' | 'note' | 'file', id: number) => {
+  const handleDelete = (type: 'folder' | 'whiteboard' | 'note' | 'file' | 'flashcard_group', id: number) => {
     setDeleteTarget({ type, id });
     setShowDeleteDialog(true);
+  };
+
+  const handleFlashcardGenerationSuccess = async () => {
+    // Refetch flashcard groups
+    try {
+      const response = await fetch(`/api/flashcards?folder_id=${folderId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFlashcardGroups(data.flashcard_groups || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch flashcard groups:', error);
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -305,6 +347,9 @@ export default function FolderDetailPage() {
         case 'file':
           endpoint = `/api/files/${deleteTarget.id}`;
           break;
+        case 'flashcard_group':
+          endpoint = `/api/flashcards/${deleteTarget.id}`;
+          break;
       }
 
       const response = await fetch(endpoint, {
@@ -324,6 +369,9 @@ export default function FolderDetailPage() {
             break;
           case 'file':
             setUploadedFiles(uploadedFiles.filter(f => f.id !== deleteTarget.id));
+            break;
+          case 'flashcard_group':
+            setFlashcardGroups(flashcardGroups.filter(fg => fg.id !== deleteTarget.id));
             break;
         }
         toast.success(`${deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1)} deleted successfully!`);
@@ -522,6 +570,26 @@ export default function FolderDetailPage() {
             </DialogContent>
           </Dialog>
 
+          <Dialog open={isFlashcardGeneratorOpen} onOpenChange={setIsFlashcardGeneratorOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
+                <Brain className="w-5 h-5" />
+                Generate Flashcards
+              </Button>
+            </DialogTrigger>
+            <FlashcardGeneratorDialog
+              isOpen={isFlashcardGeneratorOpen}
+              onClose={() => setIsFlashcardGeneratorOpen(false)}
+              folderId={parseInt(folderId)}
+              availableItems={{
+                notes,
+                files: uploadedFiles,
+                whiteboards,
+              }}
+              onSuccess={handleFlashcardGenerationSuccess}
+            />
+          </Dialog>
+
           <Dialog open={isWhiteboardDialogOpen} onOpenChange={setIsWhiteboardDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2" variant="outline">
@@ -570,7 +638,7 @@ export default function FolderDetailPage() {
             {/* Combined All Items Section */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">All Items</h2>
-              {subfolders.length === 0 && whiteboards.length === 0 && notes.length === 0 && uploadedFiles.length === 0 ? (
+              {subfolders.length === 0 && whiteboards.length === 0 && notes.length === 0 && uploadedFiles.length === 0 && flashcardGroups.length === 0 ? (
                 <div className="text-center py-20 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50/50">
                   <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">No items yet</h3>
@@ -583,7 +651,8 @@ export default function FolderDetailPage() {
                     ...subfolders.map(f => ({ ...f, type: 'folder', updated_at: f.created_at })),
                     ...whiteboards.map(w => ({ ...w, type: 'whiteboard' })),
                     ...notes.map(n => ({ ...n, type: 'note' })),
-                    ...uploadedFiles.map(f => ({ ...f, type: 'file', title: f.name, updated_at: f.created_at }))
+                    ...uploadedFiles.map(f => ({ ...f, type: 'file', title: f.name, updated_at: f.created_at })),
+                    ...flashcardGroups.map(fg => ({ ...fg, type: 'flashcard_group', title: fg.name, updated_at: fg.updated_at }))
                   ]
                     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
                     .map((item) => {
@@ -591,15 +660,17 @@ export default function FolderDetailPage() {
                       const isNote = item.type === 'note';
                       const isFolder = item.type === 'folder';
                       const isFile = item.type === 'file';
+                      const isFlashcardGroup = item.type === 'flashcard_group';
                       
                       const colors = [
                         { bg: 'from-orange-500 to-red-500', border: 'hover:border-orange-300', arrow: 'group-hover:text-orange-600' }, // Orange for folders
                         { bg: 'from-blue-500 to-purple-500', border: 'hover:border-blue-300', arrow: 'group-hover:text-blue-600' }, // Blue for whiteboards
                         { bg: 'from-green-500 to-emerald-500', border: 'hover:border-green-300', arrow: 'group-hover:text-green-600' }, // Green for notes
                         { bg: 'from-purple-500 to-pink-500', border: 'hover:border-purple-300', arrow: 'group-hover:text-purple-600' }, // Purple for files
+                        { bg: 'from-indigo-500 to-purple-500', border: 'hover:border-indigo-300', arrow: 'group-hover:text-indigo-600' }, // Indigo for flashcard groups
                       ];
                       
-                      const colorIndex = isFolder ? 0 : isWhiteboard ? 1 : isNote ? 2 : 3;
+                      const colorIndex = isFolder ? 0 : isWhiteboard ? 1 : isNote ? 2 : isFile ? 3 : 4;
                       const color = colors[colorIndex];
                       
                       let displayTitle: string;
@@ -657,11 +728,21 @@ export default function FolderDetailPage() {
                             </>
                           ) : (
                             <>
-                              <Link href={isFolder ? `/dashboard/${item.id}` : isWhiteboard ? `/whiteboards/${item.id}` : `/notes/${item.id}`}>
+                              <Link href={
+                                isFolder 
+                                  ? `/dashboard/${item.id}` 
+                                  : isWhiteboard 
+                                  ? `/whiteboards/${item.id}` 
+                                  : isNote
+                                  ? `/notes/${item.id}`
+                                  : isFlashcardGroup
+                                  ? `/flashcards/${item.id}`
+                                  : '#'
+                              }>
                                 <Card className={`p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group ${color.border}`}>
                                   <div className="flex items-start gap-4 pr-10">
                                     <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg} group-hover:scale-110 transition-transform`}>
-                                      {isFolder ? <Folder className="w-6 h-6 text-white" /> : <FileText className="w-6 h-6 text-white" />}
+                                      {isFolder ? <Folder className="w-6 h-6 text-white" /> : isFlashcardGroup ? <Brain className="w-6 h-6 text-white" /> : <FileText className="w-6 h-6 text-white" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
@@ -669,10 +750,17 @@ export default function FolderDetailPage() {
                                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                                           isFolder ? 'bg-orange-100 text-orange-700' : 
                                           isWhiteboard ? 'bg-blue-100 text-blue-700' : 
-                                          'bg-green-100 text-green-700'
+                                          isNote ? 'bg-green-100 text-green-700' :
+                                          isFlashcardGroup ? 'bg-indigo-100 text-indigo-700' :
+                                          'bg-purple-100 text-purple-700'
                                         }`}>
-                                          {isFolder ? 'Folder' : isWhiteboard ? 'Whiteboard' : 'Note'}
+                                          {isFolder ? 'Folder' : isWhiteboard ? 'Whiteboard' : isNote ? 'Note' : isFlashcardGroup ? 'Flashcards' : 'File'}
                                         </span>
+                                        {isFlashcardGroup && 'flashcard_count' in item && (
+                                          <span className="text-xs text-gray-500">
+                                            ({item.flashcard_count} cards)
+                                          </span>
+                                        )}
                                       </div>
                                       <p className="text-xs text-muted-foreground">
                                         {isFolder ? 'Created' : 'Updated'} {formatDate(updatedDate)}
@@ -688,7 +776,18 @@ export default function FolderDetailPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
-                                  handleDelete(isFolder ? 'folder' : isWhiteboard ? 'whiteboard' : 'note', item.id);
+                                  handleDelete(
+                                    isFolder 
+                                      ? 'folder' 
+                                      : isWhiteboard 
+                                      ? 'whiteboard' 
+                                      : isNote
+                                      ? 'note'
+                                      : isFlashcardGroup
+                                      ? 'flashcard_group'
+                                      : 'file', 
+                                    item.id
+                                  );
                                 }}
                               >
                                 <Trash2 className="w-4 h-4" />

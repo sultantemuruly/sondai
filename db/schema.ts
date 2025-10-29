@@ -52,3 +52,23 @@ export const files = pgTable("files", {
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const flashcard_groups = pgTable("flashcard_groups", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  folder_id: integer("folder_id").references(() => folders.id).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  name: varchar("name", { length: 256 }).notNull(),
+  azure_blob_name: varchar("azure_blob_name", { length: 512 }).notNull(), // Azure blob identifier for flashcard data
+  url: varchar("url", { length: 1024 }).notNull(), // SAS URL
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const flashcards = pgTable("flashcards", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  flashcard_group_id: integer("flashcard_group_id").references(() => flashcard_groups.id, { onDelete: "cascade" }).notNull(),
+  term: text("term").notNull(),
+  explanation: text("explanation").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
