@@ -36,6 +36,7 @@ export function FlashcardGeneratorDialog({
   const [selectedItems, setSelectedItems] = useState<ContentItem[]>([])
   const [groupName, setGroupName] = useState('')
   const [targetCount, setTargetCount] = useState(10)
+  const [targetCountInput, setTargetCountInput] = useState('10')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStatus, setGenerationStatus] = useState<{
     stage: 'idle' | 'validating' | 'generating' | 'validating-quality' | 'success' | 'error'
@@ -70,6 +71,13 @@ export function FlashcardGeneratorDialog({
       return
     }
 
+    // Validate target count
+    const parsedCount = parseInt(targetCountInput)
+    if (isNaN(parsedCount) || parsedCount < 3) {
+      toast.error('Please enter a number of flashcards that is at least 3')
+      return
+    }
+
     setIsGenerating(true)
     setGenerationStatus({ stage: 'validating', message: 'Validating content...' })
 
@@ -83,7 +91,7 @@ export function FlashcardGeneratorDialog({
           folder_id: folderId,
           name: groupName.trim(),
           items: selectedItems,
-          target_count: targetCount,
+          target_count: parsedCount,
         }),
       })
 
@@ -109,6 +117,7 @@ export function FlashcardGeneratorDialog({
       setSelectedItems([])
       setGroupName('')
       setTargetCount(10)
+      setTargetCountInput('10')
       
       // Call success callback
       if (onSuccess) {
@@ -164,14 +173,25 @@ export function FlashcardGeneratorDialog({
             </label>
             <Input
               type="number"
-              min="3"
               max="50"
-              value={targetCount}
-              onChange={(e) => setTargetCount(parseInt(e.target.value) || 10)}
+              value={targetCountInput}
+              onChange={(e) => {
+                const value = e.target.value
+                setTargetCountInput(value)
+                // Parse the number for validation, but allow empty during editing
+                if (value === '' || value === '-') {
+                  setTargetCount(0)
+                } else {
+                  const num = parseInt(value)
+                  if (!isNaN(num)) {
+                    setTargetCount(num)
+                  }
+                }
+              }}
               disabled={isGenerating}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Our AI will generate up to this many flashcards based on content quality
+              Our AI will generate up to this many flashcards based on content quality (minimum: 3)
             </p>
           </div>
 

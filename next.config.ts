@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
         ...(config.externals || []),
         'canvas',
       ];
+      
+      // Exclude canvas from client bundle (server-only)
     }
     
     return config;

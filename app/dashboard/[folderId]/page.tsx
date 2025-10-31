@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
-import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain } from 'lucide-react'
+import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain, Maximize2, Minimize2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FlashcardGeneratorDialog } from '@/components/flashcard-generator-dialog'
@@ -70,6 +70,31 @@ interface FlashcardGroup {
   type?: 'flashcard_group';
 }
 
+// Helper function to check if a file is an Office file (DOCX, PPTX, XLSX)
+function isOfficeFile(file: UploadedFile | null): boolean {
+  if (!file || !file.original_name || !file.file_type) {
+    return false;
+  }
+  
+  const lowerName = file.original_name.toLowerCase();
+  const lowerType = file.file_type.toLowerCase();
+  
+  return (
+    lowerName.endsWith('.docx') ||
+    lowerName.endsWith('.doc') ||
+    lowerName.endsWith('.pptx') ||
+    lowerName.endsWith('.ppt') ||
+    lowerName.endsWith('.xlsx') ||
+    lowerName.endsWith('.xls') ||
+    lowerType.includes('wordprocessingml') ||
+    lowerType.includes('presentationml') ||
+    lowerType.includes('spreadsheetml') ||
+    lowerType.includes('msword') ||
+    lowerType.includes('excel') ||
+    lowerType.includes('powerpoint')
+  );
+}
+
 export default function FolderDetailPage() {
   const { user } = useUser();
   const params = useParams();
@@ -90,6 +115,7 @@ export default function FolderDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newWhiteboardTitle, setNewWhiteboardTitle] = useState('');
   const [newNoteTitle, setNewNoteTitle] = useState('');
@@ -826,56 +852,161 @@ export default function FolderDetailPage() {
       </AlertDialog>
 
       {/* File Viewer Modal */}
-      <Dialog open={isFileViewerOpen} onOpenChange={setIsFileViewerOpen}>
-        <DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>{selectedFile?.name}</DialogTitle>
-            <DialogDescription>
-              {selectedFile?.original_name}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedFile && (
-            <div className="flex-1 overflow-auto mt-4">
-              {selectedFile.file_type.startsWith('image/') ? (
-                // Display images
-                <img 
-                  src={selectedFile.url} 
-                  alt={selectedFile.name}
-                  className="w-full h-auto rounded-lg"
-                />
-              ) : selectedFile.file_type === 'application/pdf' || selectedFile.original_name.endsWith('.pdf') ? (
-                // Display PDFs
-                <iframe
-                  src={selectedFile.url}
-                  className="w-full h-[70vh] rounded-lg border"
-                  title={selectedFile.name}
-                />
-              ) : (
-                // Display other file types with download option
-                <div className="flex flex-col items-center justify-center py-12">
-                  <File className="w-16 h-16 text-gray-400 mb-4" />
-                  <p className="text-lg font-medium text-gray-900 mb-2">
-                    {selectedFile.original_name}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Preview not available for this file type
-                  </p>
-                  <a
-                    href={selectedFile.url}
-                    download={selectedFile.original_name}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button>
-                      Download File
-                    </Button>
-                  </a>
-                </div>
-              )}
+      <Dialog open={isFileViewerOpen} onOpenChange={(open) => {
+        setIsFileViewerOpen(open);
+        if (!open) setIsFullscreen(false);
+      }}>
+        {isFullscreen ? (
+          // Fullscreen mode - edge to edge with two-page view for PDFs
+          <div className="fixed inset-0 z-50 bg-black flex flex-col">
+            {/* Fullscreen Header */}
+            <div className="flex items-center justify-between p-4 bg-black/90 border-b border-gray-800">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-white font-semibold truncate">{selectedFile?.name}</h2>
+                <p className="text-gray-400 text-sm truncate">{selectedFile?.original_name}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreen(false)}
+                className="shrink-0 text-white hover:bg-white/10"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </Button>
             </div>
-          )}
-        </DialogContent>
+            
+            {/* Fullscreen Content */}
+            {selectedFile && (
+              <div className="flex-1 overflow-hidden">
+                {selectedFile.file_type.startsWith('image/') ? (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <img 
+                      src={selectedFile.url} 
+                      alt={selectedFile.name}
+                      className="max-w-full max-h-full object-contain rounded-lg"
+                    />
+                  </div>
+                ) : selectedFile.file_type === 'application/pdf' || selectedFile.original_name.toLowerCase().endsWith('.pdf') ? (
+                  // Two-page view for PDFs in fullscreen
+                  <div className="w-full h-full flex flex-col md:flex-row gap-2 p-2 bg-gray-900">
+                    <div className="flex-1 min-w-0">
+                      <iframe
+                        src={selectedFile.url}
+                        className="w-full h-full rounded border border-gray-700"
+                        title={`${selectedFile.name} - Page 1`}
+                      />
+                    </div>
+                    <div className="hidden md:block flex-1 min-w-0">
+                      <iframe
+                        src={`${selectedFile.url}#page=2`}
+                        className="w-full h-full rounded border border-gray-700"
+                        title={`${selectedFile.name} - Page 2`}
+                      />
+                    </div>
+                  </div>
+                ) : isOfficeFile(selectedFile) ? (
+                  <iframe
+                    src={
+                      selectedFile.original_name.toLowerCase().endsWith('.pptx') || selectedFile.original_name.toLowerCase().endsWith('.ppt')
+                        ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(selectedFile.url)}`
+                        : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(selectedFile.url)}`
+                    }
+                    className="w-full h-full"
+                    title={selectedFile.name}
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-white">
+                    <File className="w-16 h-16 text-gray-400 mb-4" />
+                    <p className="text-lg font-medium mb-2">{selectedFile.original_name}</p>
+                    <p className="text-sm text-gray-400 mb-6">Preview not available</p>
+                    <a
+                      href={selectedFile.url}
+                      download={selectedFile.original_name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="secondary">Download File</Button>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          // Normal modal mode
+          <DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <DialogHeader className="flex flex-row items-center justify-between pr-8">
+              <div>
+                <DialogTitle>{selectedFile?.name}</DialogTitle>
+                <DialogDescription>
+                  {selectedFile?.original_name}
+                </DialogDescription>
+              </div>
+              <div className="flex gap-2">
+                {(selectedFile && (selectedFile.file_type === 'application/pdf' || selectedFile.original_name.toLowerCase().endsWith('.pdf') || isOfficeFile(selectedFile))) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="shrink-0"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </DialogHeader>
+            
+            {selectedFile && (
+              <div className="flex-1 overflow-auto mt-4">
+                {selectedFile.file_type.startsWith('image/') ? (
+                  <img 
+                    src={selectedFile.url} 
+                    alt={selectedFile.name}
+                    className="w-full h-auto rounded-lg"
+                  />
+                ) : selectedFile.file_type === 'application/pdf' || selectedFile.original_name.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={selectedFile.url}
+                    className="w-full h-[70vh] rounded-lg border"
+                    title={selectedFile.name}
+                  />
+                ) : isOfficeFile(selectedFile) ? (
+                  <iframe
+                    src={
+                      selectedFile.original_name.toLowerCase().endsWith('.pptx') || selectedFile.original_name.toLowerCase().endsWith('.ppt')
+                        ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(selectedFile.url)}`
+                        : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(selectedFile.url)}`
+                    }
+                    className="w-full h-[70vh] rounded-lg border"
+                    title={selectedFile.name}
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <File className="w-16 h-16 text-gray-400 mb-4" />
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      {selectedFile.original_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-6">
+                      Preview not available for this file type
+                    </p>
+                    <a
+                      href={selectedFile.url}
+                      download={selectedFile.original_name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button>
+                        Download File
+                      </Button>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        )}
       </Dialog>
     </div>
   )

@@ -1,8 +1,14 @@
 import { getTextContentFromAzure } from './azure';
 import { containerClient } from './azure';
+import OpenAI from 'openai';
 
-// Polyfill for DOMMatrix and other canvas APIs needed by pdf-parse
-if (typeof global !== 'undefined' && typeof DOMMatrix === 'undefined') {
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Polyfill DOM APIs needed by pdf-parse
+if (typeof global !== 'undefined') {
+  if (typeof DOMMatrix === 'undefined') {
   (global as any).DOMMatrix = class DOMMatrix {
     constructor(init?: any) {}
     a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
@@ -11,7 +17,9 @@ if (typeof global !== 'undefined' && typeof DOMMatrix === 'undefined') {
     m31 = 0; m32 = 0; m33 = 1; m34 = 0;
     m41 = 0; m42 = 0; m43 = 0; m44 = 1;
   };
+  }
   
+  if (typeof ImageData === 'undefined') {
   (global as any).ImageData = class ImageData {
     constructor(data: any, width?: number, height?: number) {
       this.data = data;
@@ -22,7 +30,9 @@ if (typeof global !== 'undefined' && typeof DOMMatrix === 'undefined') {
     width: number;
     height: number;
   };
+  }
   
+  if (typeof Path2D === 'undefined') {
   (global as any).Path2D = class Path2D {
     constructor(path?: any) {}
     addPath(path: any, transform?: any) {}
@@ -36,209 +46,267 @@ if (typeof global !== 'undefined' && typeof DOMMatrix === 'undefined') {
     quadraticCurveTo(cpx: number, cpy: number, x: number, y: number) {}
     rect(x: number, y: number, width: number, height: number) {}
   };
+  }
 }
 
-// Dynamic imports for PDF and DOCX parsing (avoids webpack issues)
-let pdfParse: any;
-let mammoth: any;
+// Format-specific extractors (lazy-loaded)
+let mammoth: any = null;
+let JSZip: any = null;
+let XLSX: any = null;
+let pptx2json: any = null;
 
 /**
- * Extract text content from a PDF file stored in Azure
+ * Extract text from PDF using pdf-parse (lightweight, no Java required)
+ * Note: pdf-parse extracts text only. For images, we'd need a more complex solution.
  */
-export async function extractTextFromPDF(azureBlobName: string): Promise<string> {
-  if (!containerClient) {
-    throw new Error('Azure Storage is not configured');
+async function extractFromPDF(buffer: Buffer): Promise<{ text: string; imageDescriptions: string[] }> {
+  // pdf-parse v1.1.1 uses simple function API - much more reliable!
+  const pdfParse = require('pdf-parse');
+  const data = await pdfParse(buffer);
+  return { text: data.text || '', imageDescriptions: [] };
+}
+
+/**
+ * Extract text and images from DOCX using mammoth and ZIP parsing
+ */
+async function extractFromDOCX(buffer: Buffer): Promise<{ text: string; imageDescriptions: string[] }> {
+  if (!mammoth) {
+    const mammothModule = await import('mammoth');
+    mammoth = mammothModule.default || mammothModule;
   }
 
-  try {
-    const blockBlobClient = containerClient!.getBlockBlobClient(azureBlobName);
-    const downloadResponse = await blockBlobClient.download();
+  if (!JSZip) {
+    JSZip = (await import('jszip')).default;
+  }
 
-    if (!downloadResponse.readableStreamBody) {
-      throw new Error('Failed to download PDF from Azure');
-    }
+  // Extract text
+  const result = await mammoth.extractRawText({ buffer });
+  const text = result.value || '';
 
-    // Collect all chunks into a buffer
-    const chunks: Buffer[] = [];
-    for await (const chunk of downloadResponse.readableStreamBody) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const pdfBuffer = Buffer.concat(chunks);
+  // Extract images from DOCX (it's a ZIP file)
+  const zip = await JSZip.loadAsync(buffer);
+  const imageBuffers: Buffer[] = [];
 
-    // Lazy load pdf-parse
-    // pdf-parse exports a function that can be called directly
-    if (!pdfParse) {
-      try {
-        const pdfParseModule = require('pdf-parse');
-        
-        // pdf-parse can export in different ways:
-        // 1. Direct function: module.exports = function(buffer) {...}
-        // 2. Object with default: { default: function }
-        // 3. Object with PDFParse class (v2.x)
-        
-        if (typeof pdfParseModule === 'function') {
-          // Traditional pdf-parse API - direct function
-          pdfParse = pdfParseModule;
-        } else if (pdfParseModule && typeof pdfParseModule === 'object') {
-          // Try default export first
-          if (typeof pdfParseModule.default === 'function') {
-            pdfParse = pdfParseModule.default;
-          } else if (pdfParseModule.PDFParse) {
-            // v2.x class-based API - use getText() method
-            const PDFParseClass = pdfParseModule.PDFParse;
-            
-            // Configure pdfjs-dist worker for Node.js environment
-            // Try to disable or properly configure the worker
-            try {
-              // Method 1: Use PDFParse.setWorker static method
-              if (PDFParseClass.setWorker && typeof PDFParseClass.setWorker === 'function') {
-                PDFParseClass.setWorker('');
-              }
-              
-              // Method 2: Configure pdfjs-dist GlobalWorkerOptions directly
-              try {
-                const pdfjs = require('pdfjs-dist');
-                if (pdfjs.GlobalWorkerOptions) {
-                  pdfjs.GlobalWorkerOptions.workerSrc = '';
-                }
-              } catch (pdfjsError) {
-                // pdfjs-dist might not be directly accessible, that's okay
-              }
-            } catch (workerConfigError) {
-              console.warn('Could not configure pdf.js worker, will try anyway:', workerConfigError);
-            }
-            
-            pdfParse = async (buffer: Buffer) => {
-              try {
-                const parser = new PDFParseClass({ data: buffer });
-                const textResult = await parser.getText();
-                
-                // getText() returns { text: string, ... }
-                if (textResult && typeof textResult === 'object' && 'text' in textResult) {
-                  return textResult;
-                }
-                return { text: textResult || '' };
-              } catch (parseError: any) {
-                // Worker errors are common - provide helpful error message
-                if (parseError?.message?.includes('worker') || parseError?.message?.includes('worker.mjs')) {
-                  throw new Error(`PDF parsing failed: Worker configuration issue. This might be a compatibility issue with pdf-parse v2.x in Next.js. Consider using an alternative PDF parsing library. Original error: ${parseError.message}`);
-                }
-                throw parseError;
-              }
-            };
-          } else {
-            // Last resort: try to use the module itself
-            throw new Error(`pdf-parse module format not recognized. Available keys: ${Object.keys(pdfParseModule).join(', ')}`);
-          }
-        } else {
-          throw new Error(`pdf-parse require returned unexpected type: ${typeof pdfParseModule}`);
-        }
-      } catch (requireError: any) {
-        console.error('Failed to require pdf-parse:', requireError);
-        throw new Error(`PDF parsing library not available: ${requireError?.message || 'Unknown error'}`);
+  for (const fileName in zip.files) {
+    if (fileName.startsWith('word/media/') || fileName.startsWith('word/media/')) {
+      const file = zip.files[fileName];
+      if (!file.dir && /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)) {
+        const imageData = await file.async('nodebuffer');
+        imageBuffers.push(imageData);
       }
     }
-    
-    if (typeof pdfParse !== 'function') {
-      throw new Error(`pdf-parse is not a function. Got type: ${typeof pdfParse}`);
-    }
-    
-    // Parse PDF - pdf-parse returns { text: string, numPages: number, ... }
-    const result = await pdfParse(pdfBuffer);
-    
-    // Extract text from result
-    if (result && typeof result === 'object' && 'text' in result) {
-      return result.text || '';
-    } else if (typeof result === 'string') {
-      return result;
-    } else {
-      console.warn('Unexpected pdf-parse return format:', typeof result, Object.keys(result || {}));
-      return '';
-    }
-  } catch (error: any) {
-    console.error('Error extracting text from PDF:', error);
-    const errorMessage = error?.message || 'Unknown error';
-    throw new Error(`Failed to extract text from PDF: ${errorMessage}`);
   }
+
+  const imageDescriptions = await processImagesWithVision(imageBuffers);
+  return { text, imageDescriptions };
 }
 
 /**
- * Extract text content from a DOCX file stored in Azure
+ * Extract text and images from PPTX using ZIP parsing
  */
-export async function extractTextFromDOCX(azureBlobName: string): Promise<string> {
-  if (!containerClient) {
-    throw new Error('Azure Storage is not configured');
+async function extractFromPPTX(buffer: Buffer): Promise<{ text: string; imageDescriptions: string[] }> {
+  if (!JSZip) {
+    JSZip = (await import('jszip')).default;
   }
 
-  try {
-    const blockBlobClient = containerClient!.getBlockBlobClient(azureBlobName);
-    const downloadResponse = await blockBlobClient.download();
+  const zip = await JSZip.loadAsync(buffer);
+  let text = '';
+  const imageBuffers: Buffer[] = [];
 
-    if (!downloadResponse.readableStreamBody) {
-      throw new Error('Failed to download DOCX from Azure');
-    }
-
-    // Collect all chunks into a buffer
-    const chunks: Buffer[] = [];
-    for await (const chunk of downloadResponse.readableStreamBody) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const docxBuffer = Buffer.concat(chunks);
-
-    // Lazy load mammoth
-    if (!mammoth) {
-      try {
-        const mammothModule = require('mammoth');
-        mammoth = mammothModule.default || mammothModule;
-      } catch (requireError) {
-        console.error('Failed to require mammoth:', requireError);
-        throw new Error('DOCX parsing library not available');
+  // Extract text from slides
+  for (const fileName in zip.files) {
+    if (fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml')) {
+      const file = zip.files[fileName];
+      const xmlContent = await file.async('string');
+      // Simple XML text extraction (remove tags)
+      const slideText = xmlContent
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (slideText) {
+        text += slideText + '\n\n';
       }
     }
-    
-    // Parse DOCX
-    const result = await mammoth.extractRawText({ buffer: docxBuffer });
-    return result.value || '';
-  } catch (error: any) {
-    console.error('Error extracting text from DOCX:', error);
-    const errorMessage = error?.message || 'Unknown error';
-    throw new Error(`Failed to extract text from DOCX: ${errorMessage}`);
+
+    // Extract images
+    if (fileName.startsWith('ppt/media/') || fileName.startsWith('ppt/slides/media/')) {
+      if (/\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)) {
+        const file = zip.files[fileName];
+        const imageData = await file.async('nodebuffer');
+        imageBuffers.push(imageData);
+      }
+    }
   }
+
+  const imageDescriptions = await processImagesWithVision(imageBuffers);
+  return { text: text.trim(), imageDescriptions };
 }
 
 /**
- * Extract text from various file types based on file extension or MIME type
+ * Extract text from XLSX using xlsx library
+ */
+async function extractFromXLSX(buffer: Buffer): Promise<{ text: string; imageDescriptions: string[] }> {
+  if (!XLSX) {
+    XLSX = (await import('xlsx')).default;
+  }
+
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  let text = '';
+
+  workbook.SheetNames.forEach((sheetName) => {
+    const worksheet = workbook.Sheets[sheetName];
+    const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    const sheetText = sheetData
+      .map((row: any) => Array.isArray(row) ? row.join('\t') : String(row))
+      .join('\n');
+    text += `\n--- Sheet: ${sheetName} ---\n${sheetText}\n\n`;
+  });
+
+  // XLSX doesn't easily extract images, but we could add ZIP parsing if needed
+  return { text: text.trim(), imageDescriptions: [] };
+}
+
+/**
+ * Process images with OpenAI Vision API (GPT-4o with vision)
+ */
+async function processImagesWithVision(imageBuffers: Buffer[]): Promise<string[]> {
+  if (!imageBuffers.length || !openai) {
+    return [];
+  }
+
+  const descriptions: string[] = [];
+
+  // Process images in batches to avoid rate limits
+  for (const imageBuffer of imageBuffers.slice(0, 10)) { // Limit to 10 images per document
+    try {
+      // Convert to base64
+      const base64Image = imageBuffer.toString('base64');
+      
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all text from this image (OCR). If it contains diagrams, charts, or visual information, describe them in detail. Focus on educational content that could be used for flashcards.',
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/png;base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 1000,
+      });
+
+      const description = response.choices[0]?.message?.content || '';
+      if (description) {
+        descriptions.push(description);
+    }
+  } catch (error: any) {
+      console.warn('Error processing image with Vision API:', error.message);
+      // Continue with other images
+    }
+  }
+
+  return descriptions;
+}
+
+/**
+ * Main extraction function - supports PDF, DOCX, PPTX, XLSX, and plain text
  */
 export async function extractTextFromFile(
   azureBlobName: string,
   fileName: string,
   mimeType?: string
 ): Promise<string> {
+  if (!containerClient) {
+    throw new Error('Azure Storage is not configured');
+  }
+
+  try {
+    // Download file from Azure
+    const blockBlobClient = containerClient.getBlockBlobClient(azureBlobName);
+    const downloadResponse = await blockBlobClient.download();
+
+    if (!downloadResponse.readableStreamBody) {
+      throw new Error('Failed to download file from Azure');
+    }
+
+    // Collect all chunks into a buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of downloadResponse.readableStreamBody) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const fileBuffer = Buffer.concat(chunks);
+
   const lowerFileName = fileName.toLowerCase();
   const lowerMimeType = mimeType?.toLowerCase() || '';
 
-  // Determine file type
+    let result: { text: string; imageDescriptions: string[] };
+
+    // Route to format-specific extractor
   if (
     lowerFileName.endsWith('.pdf') ||
     lowerMimeType === 'application/pdf' ||
     lowerMimeType.includes('pdf')
   ) {
-    return await extractTextFromPDF(azureBlobName);
+      result = await extractFromPDF(fileBuffer);
   } else if (
     lowerFileName.endsWith('.docx') ||
-    lowerFileName.endsWith('.doc') ||
-    lowerMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     lowerMimeType.includes('wordprocessingml') ||
     lowerMimeType.includes('msword')
   ) {
-    return await extractTextFromDOCX(azureBlobName);
+      result = await extractFromDOCX(fileBuffer);
+    } else if (
+      lowerFileName.endsWith('.pptx') ||
+      lowerMimeType.includes('presentationml')
+    ) {
+      result = await extractFromPPTX(fileBuffer);
+    } else if (
+      lowerFileName.endsWith('.xlsx') ||
+      lowerFileName.endsWith('.xls') ||
+      lowerMimeType.includes('spreadsheetml') ||
+      lowerMimeType.includes('excel')
+    ) {
+      result = await extractFromXLSX(fileBuffer);
   } else {
-    // For other file types, try to get as text (might work for plain text files)
+      // Try as plain text
     try {
-      return await getTextContentFromAzure(azureBlobName);
+        const text = await getTextContentFromAzure(azureBlobName);
+        return text;
     } catch {
-      throw new Error(`Unsupported file type: ${fileName}. Only PDF and DOCX files are currently supported.`);
+        throw new Error(`Unsupported file type: ${fileName}. Supported formats: PDF, DOCX, PPTX, XLSX, TXT`);
+      }
     }
+
+    // Combine text and image descriptions
+    let combinedContent = result.text;
+    
+    if (result.imageDescriptions.length > 0) {
+      combinedContent += '\n\n--- Image Content ---\n\n';
+      combinedContent += result.imageDescriptions.join('\n\n--- Next Image ---\n\n');
+    }
+
+    return combinedContent;
+  } catch (error: any) {
+    console.error(`Error extracting text from file ${fileName}:`, error);
+    throw new Error(`Failed to extract text from ${fileName}: ${error.message || 'Unknown error'}`);
   }
 }
 
+/**
+ * Legacy functions for backward compatibility
+ */
+export async function extractTextFromPDF(azureBlobName: string): Promise<string> {
+  return extractTextFromFile(azureBlobName, 'file.pdf', 'application/pdf');
+}
+
+export async function extractTextFromDOCX(azureBlobName: string): Promise<string> {
+  return extractTextFromFile(azureBlobName, 'file.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+}
