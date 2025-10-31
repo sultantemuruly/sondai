@@ -95,6 +95,57 @@ function isOfficeFile(file: UploadedFile | null): boolean {
   );
 }
 
+// Helper function to check if a file type is supported for viewing/processing
+function isSupportedFileType(file: File): boolean {
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type.toLowerCase();
+  
+  // Supported file extensions
+  const supportedExtensions = [
+    // Documents
+    '.pdf', '.docx', '.doc', '.txt', '.rtf',
+    // Presentations
+    '.pptx', '.ppt',
+    // Spreadsheets
+    '.xlsx', '.xls',
+    // Images
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.tif',
+    // Videos (we support viewing but not full processing yet)
+    '.mp4', '.mov', '.avi',
+    // Audio
+    '.mp3', '.wav', '.m4a',
+  ];
+  
+  // Check by extension
+  const hasSupportedExtension = supportedExtensions.some(ext => fileName.endsWith(ext));
+  
+  // Check by MIME type
+  const supportedMimeTypes = [
+    // Documents
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'application/rtf',
+    // Presentations
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Spreadsheets
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // Images
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff',
+    // Videos
+    'video/mp4', 'video/quicktime', 'video/x-msvideo',
+    // Audio
+    'audio/mpeg', 'audio/wav', 'audio/mp4',
+  ];
+  
+  const hasSupportedMimeType = supportedMimeTypes.some(mime => fileType.includes(mime));
+  
+  return hasSupportedExtension || hasSupportedMimeType || fileType.startsWith('image/');
+}
+
 export default function FolderDetailPage() {
   const { user } = useUser();
   const params = useParams();
@@ -327,6 +378,24 @@ export default function FolderDetailPage() {
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
+    // Check if file type is supported
+    if (!isSupportedFileType(file)) {
+      const fileExtension = file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+      toast.error(
+        `Unsupported file type: .${fileExtension}`,
+        {
+          description: 'Supported formats: PDF, DOCX, PPTX, XLSX, Images (JPG, PNG, GIF, etc.), Videos (MP4, MOV), Audio (MP3, WAV), and Text files (TXT). You can still download unsupported files, but they cannot be previewed or used for flashcard generation.',
+          duration: 6000,
+        }
+      );
+      // Reset the file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
@@ -555,7 +624,7 @@ export default function FolderDetailPage() {
               <DialogHeader>
                 <DialogTitle>Upload File</DialogTitle>
                 <DialogDescription>
-                  Upload a file to this folder
+                  Upload a file to this folder. Supported formats can be previewed and used for flashcard generation.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">
@@ -582,7 +651,10 @@ export default function FolderDetailPage() {
                       <>
                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                         <p className="text-sm font-medium text-gray-900 mb-2">Click to upload</p>
-                        <p className="text-xs text-muted-foreground">PDF, DOCX, Images, etc. (Max 100MB)</p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          <strong>Supported:</strong> PDF, DOCX, PPTX, XLSX, Images, Videos, Audio, TXT
+                        </p>
+                        <p className="text-xs text-muted-foreground">Max file size: 100MB</p>
                       </>
                     )}
                   </div>
@@ -879,11 +951,13 @@ export default function FolderDetailPage() {
             {selectedFile && (
               <div className="flex-1 overflow-hidden">
                 {selectedFile.file_type.startsWith('image/') ? (
-                  <div className="w-full h-full flex items-center justify-center p-4">
+                  // Fullscreen image view - centered and maximized
+                  <div className="w-full h-full flex items-center justify-center bg-black p-4">
                     <img 
                       src={selectedFile.url} 
                       alt={selectedFile.name}
-                      className="max-w-full max-h-full object-contain rounded-lg"
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                      style={{ maxWidth: '100vw', maxHeight: 'calc(100vh - 80px)' }}
                     />
                   </div>
                 ) : selectedFile.file_type === 'application/pdf' || selectedFile.original_name.toLowerCase().endsWith('.pdf') ? (
@@ -944,7 +1018,12 @@ export default function FolderDetailPage() {
                 </DialogDescription>
               </div>
               <div className="flex gap-2">
-                {(selectedFile && (selectedFile.file_type === 'application/pdf' || selectedFile.original_name.toLowerCase().endsWith('.pdf') || isOfficeFile(selectedFile))) && (
+                {(selectedFile && (
+                  selectedFile.file_type.startsWith('image/') ||
+                  selectedFile.file_type === 'application/pdf' || 
+                  selectedFile.original_name.toLowerCase().endsWith('.pdf') || 
+                  isOfficeFile(selectedFile)
+                )) && (
                   <Button
                     variant="ghost"
                     size="sm"
