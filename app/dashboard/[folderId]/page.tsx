@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
-import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain, Maximize2, Minimize2 } from 'lucide-react'
+import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain, Maximize2, Minimize2, Loader2, Pencil, X, Check } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FlashcardGeneratorDialog } from '@/components/flashcard-generator-dialog'
@@ -165,6 +165,10 @@ export default function FolderDetailPage() {
   const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
   const [isFlashcardGeneratorOpen, setIsFlashcardGeneratorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [creatingSubfolder, setCreatingSubfolder] = useState(false);
+  const [creatingNote, setCreatingNote] = useState(false);
+  const [creatingWhiteboard, setCreatingWhiteboard] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -174,6 +178,9 @@ export default function FolderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'folder' | 'whiteboard' | 'note' | 'file' | 'flashcard_group', id: number } | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ type: 'folder' | 'file', id: number } | null>(null);
+  const [editName, setEditName] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     const fetchFolderData = async () => {
@@ -261,6 +268,11 @@ export default function FolderDetailPage() {
       return;
     }
 
+    if (creatingSubfolder) {
+      return; // Prevent duplicate requests
+    }
+
+    setCreatingSubfolder(true);
     try {
       const response = await fetch('/api/folders', {
         method: 'POST',
@@ -279,10 +291,15 @@ export default function FolderDetailPage() {
         setNewFolderName('');
         setIsFolderDialogOpen(false);
         toast.success('Subfolder created successfully!');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to create subfolder');
       }
     } catch (error) {
       console.error('Failed to create folder:', error);
       toast.error('Failed to create subfolder');
+    } finally {
+      setCreatingSubfolder(false);
     }
   };
 
@@ -291,6 +308,11 @@ export default function FolderDetailPage() {
       return;
     }
 
+    if (creatingWhiteboard) {
+      return; // Prevent duplicate requests
+    }
+
+    setCreatingWhiteboard(true);
     // Create empty Excalidraw data
     const emptyContent = JSON.stringify({ elements: [], appState: {} });
 
@@ -315,10 +337,15 @@ export default function FolderDetailPage() {
         toast.success('Whiteboard created successfully!');
         // Navigate to the whiteboard editor
         router.push(`/whiteboards/${data.whiteboard.id}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to create whiteboard');
       }
     } catch (error) {
       console.error('Failed to create whiteboard:', error);
       toast.error('Failed to create whiteboard');
+    } finally {
+      setCreatingWhiteboard(false);
     }
   };
 
@@ -327,6 +354,11 @@ export default function FolderDetailPage() {
       return;
     }
 
+    if (creatingNote) {
+      return; // Prevent duplicate requests
+    }
+
+    setCreatingNote(true);
     // Create empty TipTap content
     const emptyContent = JSON.stringify({ type: 'doc', content: [] });
 
@@ -351,10 +383,57 @@ export default function FolderDetailPage() {
         toast.success('Note created successfully!');
         // Navigate to the note editor
         router.push(`/notes/${data.note.id}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to create note');
       }
     } catch (error) {
       console.error('Failed to create note:', error);
       toast.error('Failed to create note');
+    } finally {
+      setCreatingNote(false);
+    }
+  };
+
+  const handleRenameItem = async (type: 'folder' | 'file', id: number, newName: string) => {
+    if (!newName.trim()) {
+      return;
+    }
+
+    if (renaming) {
+      return;
+    }
+
+    setRenaming(true);
+    try {
+      const endpoint = type === 'folder' ? `/api/folders/${id}` : `/api/files/${id}`;
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (type === 'folder') {
+          setSubfolders(subfolders.map(f => f.id === id ? data.folder : f));
+        } else {
+          setUploadedFiles(uploadedFiles.map(f => f.id === id ? data.file : f));
+        }
+        setEditingItem(null);
+        setEditName('');
+        toast.success(`${type === 'folder' ? 'Subfolder' : 'File'} renamed successfully!`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || `Failed to rename ${type}`);
+      }
+    } catch (error) {
+      console.error(`Failed to rename ${type}:`, error);
+      toast.error(`Failed to rename ${type}`);
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -445,6 +524,11 @@ export default function FolderDetailPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
 
+    if (deleting) {
+      return; // Prevent duplicate requests
+    }
+
+    setDeleting(true);
     try {
       let endpoint = '';
       switch (deleteTarget.type) {
@@ -488,11 +572,15 @@ export default function FolderDetailPage() {
             break;
         }
         toast.success(`${deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1)} deleted successfully!`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || `Failed to delete ${deleteTarget.type}`);
       }
     } catch (error) {
       console.error('Failed to delete:', error);
       toast.error(`Failed to delete ${deleteTarget?.type || 'item'}`);
     } finally {
+      setDeleting(false);
       setShowDeleteDialog(false);
       setDeleteTarget(null);
     }
@@ -557,46 +645,14 @@ export default function FolderDetailPage() {
 
         {/* Actions Section */}
         <div className="flex gap-4 mb-8">
-          <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
+          {/* Primary Actions - Most Common */}
+          <Dialog open={isNoteDialogOpen} onOpenChange={(open) => {
+            if (!creatingNote) {
+              setIsNoteDialogOpen(open);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                <Plus className="w-5 h-5" />
-                Create Subfolder
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Subfolder</DialogTitle>
-                <DialogDescription>
-                  Enter a name for your new subfolder
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <Input
-                  placeholder="Subfolder name"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleCreateSubfolder();
-                    }
-                  }}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsFolderDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreateSubfolder}>
-                  Create
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" variant="outline">
                 <Plus className="w-5 h-5" />
                 Create Note
               </Button>
@@ -614,24 +670,40 @@ export default function FolderDetailPage() {
                   value={newNoteTitle}
                   onChange={(e) => setNewNoteTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !creatingNote) {
                       handleCreateNote();
                     }
                   }}
+                  disabled={creatingNote}
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsNoteDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsNoteDialogOpen(false)}
+                  disabled={creatingNote}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleCreateNote}>
-                  Create
+                <Button onClick={handleCreateNote} disabled={creatingNote}>
+                  {creatingNote ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isFileUploadDialogOpen} onOpenChange={setIsFileUploadDialogOpen}>
+          <Dialog open={isFileUploadDialogOpen} onOpenChange={(open) => {
+            if (!uploading) {
+              setIsFileUploadDialogOpen(open);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2" variant="outline">
                 <Upload className="w-5 h-5" />
@@ -679,34 +751,23 @@ export default function FolderDetailPage() {
                 </label>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsFileUploadDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsFileUploadDialogOpen(false)}
+                  disabled={uploading}
+                >
                   Cancel
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isFlashcardGeneratorOpen} onOpenChange={setIsFlashcardGeneratorOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                <Brain className="w-5 h-5" />
-                Generate Flashcards
-              </Button>
-            </DialogTrigger>
-            <FlashcardGeneratorDialog
-              isOpen={isFlashcardGeneratorOpen}
-              onClose={() => setIsFlashcardGeneratorOpen(false)}
-              folderId={parseInt(folderId)}
-              availableItems={{
-                notes,
-                files: uploadedFiles,
-                whiteboards,
-              }}
-              onSuccess={handleFlashcardGenerationSuccess}
-            />
-          </Dialog>
-
-          <Dialog open={isWhiteboardDialogOpen} onOpenChange={setIsWhiteboardDialogOpen}>
+          {/* Secondary Actions - Content Creation */}
+          <Dialog open={isWhiteboardDialogOpen} onOpenChange={(open) => {
+            if (!creatingWhiteboard) {
+              setIsWhiteboardDialogOpen(open);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2" variant="outline">
                 <Plus className="w-5 h-5" />
@@ -726,21 +787,108 @@ export default function FolderDetailPage() {
                   value={newWhiteboardTitle}
                   onChange={(e) => setNewWhiteboardTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !creatingWhiteboard) {
                       handleCreateWhiteboard();
                     }
                   }}
+                  disabled={creatingWhiteboard}
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsWhiteboardDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsWhiteboardDialogOpen(false)}
+                  disabled={creatingWhiteboard}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleCreateWhiteboard}>
-                  Create
+                <Button onClick={handleCreateWhiteboard} disabled={creatingWhiteboard}>
+                  {creatingWhiteboard ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
+          </Dialog>
+
+          {/* Organization Actions */}
+          <Dialog open={isFolderDialogOpen} onOpenChange={(open) => {
+            if (!creatingSubfolder) {
+              setIsFolderDialogOpen(open);
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" variant="outline">
+                <Plus className="w-5 h-5" />
+                Create Subfolder
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Subfolder</DialogTitle>
+                <DialogDescription>
+                  Enter a name for your new subfolder
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Input
+                  placeholder="Subfolder name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !creatingSubfolder) {
+                      handleCreateSubfolder();
+                    }
+                  }}
+                  disabled={creatingSubfolder}
+                />
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsFolderDialogOpen(false)}
+                  disabled={creatingSubfolder}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateSubfolder} disabled={creatingSubfolder}>
+                  {creatingSubfolder ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Specialized Actions */}
+          <Dialog open={isFlashcardGeneratorOpen} onOpenChange={setIsFlashcardGeneratorOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
+                <Brain className="w-5 h-5" />
+                Generate Flashcards
+              </Button>
+            </DialogTrigger>
+            <FlashcardGeneratorDialog
+              isOpen={isFlashcardGeneratorOpen}
+              onClose={() => setIsFlashcardGeneratorOpen(false)}
+              folderId={parseInt(folderId)}
+              availableItems={{
+                notes,
+                files: uploadedFiles,
+                whiteboards,
+              }}
+              onSuccess={handleFlashcardGenerationSuccess}
+            />
           </Dialog>
         </div>
 
@@ -798,117 +946,258 @@ export default function FolderDetailPage() {
                       
                       const updatedDate = isFolder ? item.created_at : item.updated_at;
 
+                      const isEditing = (isFolder && editingItem?.type === 'folder' && editingItem?.id === item.id) ||
+                                        (isFile && editingItem?.type === 'file' && editingItem?.id === item.id);
+                      
                       return (
                         <div key={`${item.type}-${item.id}`} className="relative group">
                           {isFile ? (
-                            <>
-                              <div 
-                                className="block"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setSelectedFile(item as UploadedFile);
-                                  setIsFileViewerOpen(true);
-                                }}
-                              >
-                                <Card className={`p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group ${color.border}`}>
-                                  <div className="flex items-start gap-4 pr-10">
-                                    <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg} group-hover:scale-110 transition-transform`}>
-                                      <File className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold text-lg text-gray-900">{displayTitle}</h3>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700`}>
-                                          File
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-muted-foreground">
-                                        Uploaded {formatDate(updatedDate)}
-                                      </p>
+                            isEditing ? (
+                              <Card className={`p-6 border-2 border-blue-300 bg-gradient-to-br from-white to-gray-50 ${color.border}`}>
+                                <div className="flex items-start gap-4">
+                                  <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg}`}>
+                                    <File className="w-6 h-6 text-white" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <Input
+                                      value={editName}
+                                      onChange={(e) => setEditName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !renaming) {
+                                          handleRenameItem('file', item.id, editName);
+                                        }
+                                        if (e.key === 'Escape') {
+                                          setEditingItem(null);
+                                          setEditName('');
+                                        }
+                                      }}
+                                      disabled={renaming}
+                                      className="mb-2"
+                                      autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleRenameItem('file', item.id, editName)}
+                                        disabled={renaming || !editName.trim()}
+                                        className="h-7"
+                                      >
+                                        <Check className="w-3 h-3 mr-1" />
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingItem(null);
+                                          setEditName('');
+                                        }}
+                                        disabled={renaming}
+                                        className="h-7"
+                                      >
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancel
+                                      </Button>
                                     </div>
                                   </div>
-                                </Card>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 z-10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  handleDelete('file', item.id);
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Link href={
-                                isFolder 
-                                  ? `/dashboard/${item.id}` 
-                                  : isWhiteboard 
-                                  ? `/whiteboards/${item.id}` 
-                                  : isNote
-                                  ? `/notes/${item.id}`
-                                  : isFlashcardGroup
-                                  ? `/flashcards/${item.id}`
-                                  : '#'
-                              }>
-                                <Card className={`p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group ${color.border}`}>
-                                  <div className="flex items-start gap-4 pr-10">
-                                    <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg} group-hover:scale-110 transition-transform`}>
-                                      {isFolder ? <Folder className="w-6 h-6 text-white" /> : isFlashcardGroup ? <Brain className="w-6 h-6 text-white" /> : <FileText className="w-6 h-6 text-white" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold text-lg text-gray-900">{displayTitle}</h3>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                          isFolder ? 'bg-orange-100 text-orange-700' : 
-                                          isWhiteboard ? 'bg-blue-100 text-blue-700' : 
-                                          isNote ? 'bg-green-100 text-green-700' :
-                                          isFlashcardGroup ? 'bg-indigo-100 text-indigo-700' :
-                                          'bg-purple-100 text-purple-700'
-                                        }`}>
-                                          {isFolder ? 'Folder' : isWhiteboard ? 'Whiteboard' : isNote ? 'Note' : isFlashcardGroup ? 'Flashcards' : 'File'}
-                                        </span>
-                                        {isFlashcardGroup && 'flashcard_count' in item && (
-                                          <span className="text-xs text-gray-500">
-                                            ({item.flashcard_count} cards)
+                                </div>
+                              </Card>
+                            ) : (
+                              <>
+                                <div 
+                                  className="block"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setSelectedFile(item as UploadedFile);
+                                    setIsFileViewerOpen(true);
+                                  }}
+                                >
+                                  <Card className={`p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group ${color.border}`}>
+                                    <div className="flex items-start gap-4 pr-20">
+                                      <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg} group-hover:scale-110 transition-transform`}>
+                                        <File className="w-6 h-6 text-white" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h3 className="font-bold text-lg text-gray-900">{displayTitle}</h3>
+                                          <span className={`text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700`}>
+                                            File
                                           </span>
-                                        )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                          Uploaded {formatDate(updatedDate)}
+                                        </p>
                                       </div>
-                                      <p className="text-xs text-muted-foreground">
-                                        {isFolder ? 'Created' : 'Updated'} {formatDate(updatedDate)}
-                                      </p>
+                                    </div>
+                                  </Card>
+                                </div>
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      setEditingItem({ type: 'file', id: item.id });
+                                      setEditName(displayTitle);
+                                    }}
+                                    className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      handleDelete('file', item.id);
+                                    }}
+                                    className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </>
+                            )
+                          ) : (
+                            isFolder && isEditing ? (
+                              <Card className={`p-6 border-2 border-blue-300 bg-gradient-to-br from-white to-gray-50 ${color.border}`}>
+                                <div className="flex items-start gap-4">
+                                  <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg}`}>
+                                    <Folder className="w-6 h-6 text-white" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <Input
+                                      value={editName}
+                                      onChange={(e) => setEditName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !renaming) {
+                                          handleRenameItem('folder', item.id, editName);
+                                        }
+                                        if (e.key === 'Escape') {
+                                          setEditingItem(null);
+                                          setEditName('');
+                                        }
+                                      }}
+                                      disabled={renaming}
+                                      className="mb-2"
+                                      autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleRenameItem('folder', item.id, editName)}
+                                        disabled={renaming || !editName.trim()}
+                                        className="h-7"
+                                      >
+                                        <Check className="w-3 h-3 mr-1" />
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingItem(null);
+                                          setEditName('');
+                                        }}
+                                        disabled={renaming}
+                                        className="h-7"
+                                      >
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancel
+                                      </Button>
                                     </div>
                                   </div>
-                                </Card>
-                              </Link>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 z-10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  handleDelete(
-                                    isFolder 
-                                      ? 'folder' 
-                                      : isWhiteboard 
-                                      ? 'whiteboard' 
-                                      : isNote
-                                      ? 'note'
-                                      : isFlashcardGroup
-                                      ? 'flashcard_group'
-                                      : 'file', 
-                                    item.id
-                                  );
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
+                                </div>
+                              </Card>
+                            ) : (
+                              <>
+                                <Link href={
+                                  isFolder 
+                                    ? `/dashboard/${item.id}` 
+                                    : isWhiteboard 
+                                    ? `/whiteboards/${item.id}` 
+                                    : isNote
+                                    ? `/notes/${item.id}`
+                                    : isFlashcardGroup
+                                    ? `/flashcards/${item.id}`
+                                    : '#'
+                                }>
+                                  <Card className={`p-6 hover:shadow-lg transition-all border-2 bg-gradient-to-br from-white to-gray-50 cursor-pointer group ${color.border}`}>
+                                    <div className={`flex items-start gap-4 ${isFolder ? 'pr-20' : 'pr-10'}`}>
+                                      <div className={`flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${color.bg} group-hover:scale-110 transition-transform`}>
+                                        {isFolder ? <Folder className="w-6 h-6 text-white" /> : isFlashcardGroup ? <Brain className="w-6 h-6 text-white" /> : <FileText className="w-6 h-6 text-white" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h3 className="font-bold text-lg text-gray-900">{displayTitle}</h3>
+                                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                            isFolder ? 'bg-orange-100 text-orange-700' : 
+                                            isWhiteboard ? 'bg-blue-100 text-blue-700' : 
+                                            isNote ? 'bg-green-100 text-green-700' :
+                                            isFlashcardGroup ? 'bg-indigo-100 text-indigo-700' :
+                                            'bg-purple-100 text-purple-700'
+                                          }`}>
+                                            {isFolder ? 'Folder' : isWhiteboard ? 'Whiteboard' : isNote ? 'Note' : isFlashcardGroup ? 'Flashcards' : 'File'}
+                                          </span>
+                                          {isFlashcardGroup && 'flashcard_count' in item && (
+                                            <span className="text-xs text-gray-500">
+                                              ({item.flashcard_count} cards)
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                          {isFolder ? 'Created' : 'Updated'} {formatDate(updatedDate)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                </Link>
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
+                                  {isFolder && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setEditingItem({ type: 'folder', id: item.id });
+                                        setEditName(displayTitle);
+                                      }}
+                                      className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      handleDelete(
+                                        isFolder 
+                                          ? 'folder' 
+                                          : isWhiteboard 
+                                          ? 'whiteboard' 
+                                          : isNote
+                                          ? 'note'
+                                          : isFlashcardGroup
+                                          ? 'flashcard_group'
+                                          : 'file', 
+                                        item.id
+                                      );
+                                    }}
+                                    className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </>
+                            )
                           )}
                         </div>
                       );
@@ -921,7 +1210,11 @@ export default function FolderDetailPage() {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showDeleteDialog} onOpenChange={(open) => {
+        if (!deleting) {
+          setShowDeleteDialog(open);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -930,12 +1223,20 @@ export default function FolderDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={deleting}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
-import { Folder, Plus, ArrowLeft, Sparkles } from 'lucide-react'
+import { Folder, Plus, ArrowLeft, Sparkles, Loader2, Trash2, Pencil, X, Check } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Folder {
   id: number;
@@ -23,6 +25,13 @@ const Dashboard = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState<number | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchFolders = async () => {
@@ -44,11 +53,88 @@ const Dashboard = () => {
     fetchFolders();
   }, [user]);
 
+  const handleRenameFolder = async (folderId: number, newName: string) => {
+    if (!newName.trim()) {
+      return;
+    }
+
+    if (renamingFolder) {
+      return;
+    }
+
+    setRenamingFolder(true);
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFolders(folders.map(f => f.id === folderId ? data.folder : f));
+        setEditingFolderId(null);
+        setEditFolderName('');
+        toast.success('Folder renamed successfully!');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to rename folder');
+      }
+    } catch (error) {
+      console.error('Failed to rename folder:', error);
+      toast.error('Failed to rename folder');
+    } finally {
+      setRenamingFolder(false);
+    }
+  };
+
+  const handleDeleteFolder = (folderId: number) => {
+    setDeleteTarget(folderId);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    if (deleting) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/folders/${deleteTarget}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setFolders(folders.filter(f => f.id !== deleteTarget));
+        toast.success('Folder deleted successfully!');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to delete folder');
+      }
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+      toast.error('Failed to delete folder');
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteTarget(null);
+    }
+  };
+
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       return;
     }
 
+    if (creatingFolder) {
+      return; // Prevent duplicate requests
+    }
+
+    setCreatingFolder(true);
     try {
       const response = await fetch('/api/folders', {
         method: 'POST',
@@ -63,9 +149,15 @@ const Dashboard = () => {
         setFolders([...folders, data.folder]);
         setNewFolderName('');
         setIsDialogOpen(false);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to create folder');
       }
     } catch (error) {
       console.error('Failed to create folder:', error);
+      toast.error('Failed to create folder');
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
@@ -153,18 +245,30 @@ const Dashboard = () => {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !creatingFolder) {
                       handleCreateFolder();
                     }
                   }}
+                  disabled={creatingFolder}
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={creatingFolder}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleCreateFolder}>
-                  Create
+                <Button onClick={handleCreateFolder} disabled={creatingFolder}>
+                  {creatingFolder ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -181,7 +285,11 @@ const Dashboard = () => {
             <Folder className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No folders yet</h3>
             <p className="text-muted-foreground mb-6">Create your first folder to get started</p>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              if (!creatingFolder) {
+                setIsDialogOpen(open);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <Plus className="w-5 h-5" />
@@ -193,25 +301,142 @@ const Dashboard = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {folders.map((folder) => (
-              <Link key={folder.id} href={`/dashboard/${folder.id}`}>
-                <Card className="p-6 hover:shadow-xl transition-all cursor-pointer group hover:border-blue-300 border-2 bg-gradient-to-br from-white to-gray-50">
-                  <div className="flex items-start gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform shadow-lg">
-                      <Folder className="w-6 h-6 text-white" />
+              <div key={folder.id} className="relative group">
+                {editingFolderId === folder.id ? (
+                  <Card className="p-6 border-2 border-blue-300 bg-gradient-to-br from-white to-gray-50">
+                    <div className="flex items-start gap-4">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 shadow-lg">
+                        <Folder className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Input
+                          value={editFolderName}
+                          onChange={(e) => setEditFolderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !renamingFolder) {
+                              handleRenameFolder(folder.id, editFolderName);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingFolderId(null);
+                              setEditFolderName('');
+                            }
+                          }}
+                          disabled={renamingFolder}
+                          className="mb-2"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRenameFolder(folder.id, editFolderName)}
+                            disabled={renamingFolder || !editFolderName.trim()}
+                            className="h-7"
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingFolderId(null);
+                              setEditFolderName('');
+                            }}
+                            disabled={renamingFolder}
+                            className="h-7"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg text-gray-900 mb-2 truncate">{folder.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Created {formatDate(folder.created_at)}
-                      </p>
+                  </Card>
+                ) : (
+                  <>
+                    <Link href={`/dashboard/${folder.id}`}>
+                      <Card className="p-6 hover:shadow-xl transition-all cursor-pointer group hover:border-blue-300 border-2 bg-gradient-to-br from-white to-gray-50">
+                        <div className="flex items-start gap-4 pr-16">
+                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform shadow-lg">
+                            <Folder className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-lg text-gray-900 mb-2 truncate">{folder.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Created {formatDate(folder.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    </Link>
+                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingFolderId(folder.id);
+                          setEditFolderName(folder.name);
+                        }}
+                        className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteFolder(folder.id);
+                        }}
+                        className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </div>
-                </Card>
-              </Link>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={(open) => {
+        if (!deleting) {
+          setShowDeleteDialog(open);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the folder and all its contents, including all subfolders, notes, whiteboards, files, and flashcards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
