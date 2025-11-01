@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -44,6 +44,11 @@ export function FlashcardViewer({
   const [isDeleting, setIsDeleting] = useState(false)
 
   const currentFlashcard = flashcards[currentIndex]
+
+  // Reset flip state when navigating to a new card
+  useEffect(() => {
+    setIsFlipped(false)
+  }, [currentIndex])
 
   const startEdit = (flashcard: Flashcard) => {
     setEditingId(flashcard.id)
@@ -188,80 +193,124 @@ export function FlashcardViewer({
 
       {/* Flashcard Display */}
       <div className="relative">
-        <Card className="p-8 min-h-[400px] flex items-center justify-center">
-          {editingId === currentFlashcard.id ? (
-            <div className="w-full space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Term</label>
-                <Input
-                  value={editTerm}
-                  onChange={(e) => setEditTerm(e.target.value)}
-                  placeholder="Enter term or question"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Explanation</label>
-                <textarea
-                  value={editExplanation}
-                  onChange={(e) => setEditExplanation(e.target.value)}
-                  placeholder="Enter explanation or answer"
-                  className="w-full min-h-[200px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={isUpdating} size="sm">
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
-                </Button>
-                <Button onClick={cancelEdit} variant="outline" size="sm">
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center w-full">
-              <div className="mb-8">
-                {isFlipped ? (
+        <div className="perspective-1000 mx-auto max-w-2xl">
+          <div 
+            className="relative w-full h-[500px] preserve-3d cursor-pointer"
+            onClick={() => editingId !== currentFlashcard.id && setIsFlipped(!isFlipped)}
+            style={{
+              transformStyle: 'preserve-3d',
+              transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              transition: 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
+            {editingId === currentFlashcard.id ? (
+              <Card className="p-8 h-full flex items-center justify-center backface-hidden">
+                <div className="w-full space-y-4">
                   <div>
-                    <p className="text-sm text-gray-500 mb-2">Explanation</p>
-                    <p className="text-lg text-gray-900 whitespace-pre-wrap">{currentFlashcard.explanation}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Term</label>
+                    <Input
+                      value={editTerm}
+                      onChange={(e) => setEditTerm(e.target.value)}
+                      placeholder="Enter term or question"
+                    />
                   </div>
-                ) : (
                   <div>
-                    <p className="text-sm text-gray-500 mb-2">Term</p>
-                    <p className="text-2xl font-bold text-gray-900">{currentFlashcard.term}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Explanation</label>
+                    <textarea
+                      value={editExplanation}
+                      onChange={(e) => setEditExplanation(e.target.value)}
+                      placeholder="Enter explanation or answer"
+                      className="w-full min-h-[200px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
-                )}
-              </div>
-              
-              <Button
-                onClick={() => setIsFlipped(!isFlipped)}
-                variant="outline"
-                className="mb-4"
-              >
-                <RotateCw className="w-4 h-4 mr-2" />
-                {isFlipped ? 'Show Term' : 'Show Explanation'}
-              </Button>
-            </div>
-          )}
-        </Card>
+                  <div className="flex gap-2">
+                    <Button onClick={handleSave} disabled={isUpdating} size="sm">
+                      <Save className="w-4 h-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button onClick={cancelEdit} variant="outline" size="sm">
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <>
+                {/* Front of card - Term */}
+                <Card 
+                  className="absolute inset-0 p-8 flex flex-col items-center justify-center backface-hidden shadow-2xl rounded-xl"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(0deg)',
+                    background: 'linear-gradient(135deg, #4c51bf 0%, #553c9a 100%)',
+                    color: 'white',
+                    border: 'none',
+                  }}
+                >
+                  <div className="text-center w-full">
+                    <p className="text-sm text-white/80 mb-4 font-medium">Term</p>
+                    <p className="text-3xl md:text-4xl font-bold text-white leading-tight">
+                      {currentFlashcard.term}
+                    </p>
+                    <div className="mt-8 flex items-center justify-center gap-2 text-white/70 text-sm font-medium animate-pulse">
+                      <RotateCw className="w-4 h-4" />
+                      <span>Click anywhere to flip</span>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Back of card - Explanation */}
+                <Card 
+                  className="absolute inset-0 p-8 flex flex-col items-center justify-center backface-hidden shadow-2xl rounded-xl"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                    background: 'linear-gradient(135deg, #c026d3 0%, #dc2626 100%)',
+                    color: 'white',
+                    border: 'none',
+                  }}
+                >
+                  <div className="text-center w-full max-h-full overflow-y-auto">
+                    <p className="text-sm text-white/80 mb-4 font-medium">Explanation</p>
+                    <p className="text-xl md:text-2xl text-white whitespace-pre-wrap leading-relaxed">
+                      {currentFlashcard.explanation}
+                    </p>
+                    <div className="mt-8 flex items-center justify-center gap-2 text-white/70 text-sm font-medium animate-pulse">
+                      <RotateCw className="w-4 h-4" />
+                      <span>Click anywhere to flip back</span>
+                    </div>
+                  </div>
+                </Card>
+              </>
+            )}
+          </div>
+        </div>
 
         {editingId !== currentFlashcard.id && (
-          <div className="absolute top-4 right-4 flex gap-2">
+          <div className="absolute top-4 right-4 z-20 flex gap-2">
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => startEdit(currentFlashcard)}
+              onClick={(e) => {
+                e.stopPropagation()
+                startEdit(currentFlashcard)
+              }}
+              className="bg-white/90 backdrop-blur-sm shadow-lg hover:bg-white"
             >
               <Edit2 className="w-4 h-4" />
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => handleDelete(currentFlashcard.id)}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete(currentFlashcard.id)
+              }}
               disabled={isDeleting}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 bg-white/90 backdrop-blur-sm shadow-lg"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
