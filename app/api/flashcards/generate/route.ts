@@ -3,10 +3,11 @@ import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { users, folders, flashcard_groups, flashcards, notes, files, whiteboards } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { generateValidatedFlashcards } from '@/lib/agents/flashcard-agents';
+import { generateValidatedFlashcards } from '@/lib/agents/flashcard-agents-sdk';
 import { uploadTextContentToAzure, getTextContentFromAzure } from '@/lib/azure';
 import { extractTextFromFile } from '@/lib/file-extraction';
 import { validateCumulativeFileSize } from '@/lib/file-limits';
+import { validateUserInstructionsServer } from '@/lib/guardrails-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,13 +133,28 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { folder_id, name, items, target_count } = body;
+    const { folder_id, name, items, target_count, additional_instructions } = body;
 
     if (!folder_id || !name || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'folder_id, name, and items array are required' },
         { status: 400 }
       );
+    }
+
+    // Validate and sanitize additional instructions (server-side with OpenAI moderation)
+    let sanitizedInstructions: string | undefined;
+    if (additional_instructions && typeof additional_instructions === 'string' && additional_instructions.trim().length > 0) {
+      const validation = await validateUserInstructionsServer(additional_instructions);
+      
+      if (!validation.isValid) {
+        return NextResponse.json(
+          { error: validation.error || 'Invalid instructions provided' },
+          { status: 400 }
+        );
+      }
+      
+      sanitizedInstructions = validation.sanitized || additional_instructions.trim();
     }
 
     const dbUser = await db
@@ -203,7 +219,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate flashcards using the agentic system
-    const result = await generateValidatedFlashcards(content, target_count || 10);
+    const result = await generateValidatedFlashcards(content, target_count || 10, sanitizedInstructions);
 
     if (!result.success) {
       return NextResponse.json(
@@ -246,7 +262,6 @@ export async function POST(req: NextRequest) {
       flashcards: result.flashcards,
       generated_at: new Date().toISOString(),
       source_items: items,
-      quality_issues: result.qualityIssues,
     };
 
     const { blobName, url } = await uploadTextContentToAzure(
@@ -302,7 +317,6 @@ export async function POST(req: NextRequest) {
         flashcard_group: updatedGroup,
         flashcards: createdFlashcards,
         validation_result: result.validationResult,
-        quality_issues: result.qualityIssues,
       },
       { status: 201 }
     );

@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { MAX_CUMULATIVE_SIZE_FOR_FLASHCARDS, formatFileSize, validateCumulativeFileSize } from '@/lib/file-limits'
+import { validateUserInstructions } from '@/lib/guardrails'
 
 interface ContentItem {
   type: 'note' | 'file' | 'whiteboard'
@@ -39,6 +40,8 @@ export function FlashcardGeneratorDialog({
   const [groupName, setGroupName] = useState('')
   const [targetCount, setTargetCount] = useState(10)
   const [targetCountInput, setTargetCountInput] = useState('10')
+  const [additionalInstructions, setAdditionalInstructions] = useState('')
+  const [instructionsValidation, setInstructionsValidation] = useState<{ isValid: boolean; error?: string }>({ isValid: true })
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStatus, setGenerationStatus] = useState<{
     stage: 'idle' | 'validating' | 'generating' | 'validating-quality' | 'success' | 'error'
@@ -67,6 +70,16 @@ export function FlashcardGeneratorDialog({
       }
       return [...prev, item]
     })
+  }
+
+  const handleInstructionsChange = (value: string) => {
+    setAdditionalInstructions(value)
+    if (value.trim().length > 0) {
+      const validation = validateUserInstructions(value)
+      setInstructionsValidation(validation)
+    } else {
+      setInstructionsValidation({ isValid: true })
+    }
   }
 
   const handleGenerate = async () => {
@@ -98,6 +111,15 @@ export function FlashcardGeneratorDialog({
       return
     }
 
+    // Validate additional instructions
+    if (additionalInstructions.trim().length > 0) {
+      const validation = validateUserInstructions(additionalInstructions)
+      if (!validation.isValid) {
+        toast.error(validation.error || 'Invalid instructions')
+        return
+      }
+    }
+
     setIsGenerating(true)
     setGenerationStatus({ stage: 'validating', message: 'Validating content...' })
 
@@ -112,6 +134,7 @@ export function FlashcardGeneratorDialog({
           name: groupName.trim(),
           items: selectedItems,
           target_count: parsedCount,
+          additional_instructions: additionalInstructions.trim() || undefined,
         }),
       })
 
@@ -138,6 +161,8 @@ export function FlashcardGeneratorDialog({
       setGroupName('')
       setTargetCount(10)
       setTargetCountInput('10')
+      setAdditionalInstructions('')
+      setInstructionsValidation({ isValid: true })
       
       // Call success callback
       if (onSuccess) {
@@ -213,6 +238,39 @@ export function FlashcardGeneratorDialog({
             <p className="text-xs text-gray-500 mt-1">
               Our AI will generate up to this many flashcards based on content quality (minimum: 3)
             </p>
+          </div>
+
+          {/* Additional Instructions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional Instructions (Optional)
+            </label>
+            <textarea
+              placeholder="e.g., Only pick very important terms and write their definitions in 2 sentences max"
+              value={additionalInstructions}
+              onChange={(e) => handleInstructionsChange(e.target.value)}
+              disabled={isGenerating}
+              className="w-full min-h-[100px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              maxLength={50000}
+            />
+            <div className="flex items-start justify-between mt-1">
+              <div className="flex-1">
+                {!instructionsValidation.isValid && (
+                  <p className="text-xs text-red-600">{instructionsValidation.error}</p>
+                )}
+                {instructionsValidation.isValid && additionalInstructions.length > 0 && (
+                  <p className="text-xs text-green-600">Instructions look good!</p>
+                )}
+                {additionalInstructions.length === 0 && (
+                  <p className="text-xs text-gray-500">
+                    Provide specific guidance for flashcard generation (e.g., focus on key concepts, keep definitions brief)
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 ml-2">
+                {additionalInstructions.length.toLocaleString()}/50,000
+              </p>
+            </div>
           </div>
 
           {/* File Size Warning */}
@@ -334,7 +392,7 @@ export function FlashcardGeneratorDialog({
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={isGenerating || selectedItems.length === 0 || !groupName.trim() || !sizeValidation.valid}
+            disabled={isGenerating || selectedItems.length === 0 || !groupName.trim() || !sizeValidation.valid || !instructionsValidation.isValid}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           >
             {isGenerating ? (
