@@ -657,7 +657,17 @@ export default function FolderDetailPage() {
     return (
       <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <svg className="w-16 h-16 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loader-gradient-folder" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#9333ea" />
+                </linearGradient>
+              </defs>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-folder)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+            </svg>
+          </div>
           <p className="text-lg font-semibold text-gray-900">Loading...</p>
           <p className="text-sm text-muted-foreground mt-2">Please wait</p>
         </div>
@@ -677,7 +687,10 @@ export default function FolderDetailPage() {
       {isDraggingOver && !uploading && !deleting && (
         <div className="fixed inset-0 z-[90] bg-blue-50/95 backdrop-blur-sm flex items-center justify-center border-4 border-dashed border-blue-600">
           <div className="text-center">
-            <Upload className="w-20 h-20 text-blue-600 mx-auto mb-4 animate-bounce" />
+            <div className="relative w-20 h-20 mx-auto mb-4">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full opacity-20"></div>
+              <Upload className="w-20 h-20 text-blue-600 animate-bounce relative" style={{ filter: 'drop-shadow(0 0 12px rgba(59, 130, 246, 0.6))' }} />
+            </div>
             <p className="text-2xl font-semibold text-gray-900 mb-2">Drop files to upload</p>
             <p className="text-sm text-muted-foreground">Supported: PDF, DOCX, PPTX, XLSX, Images, Videos, Audio, TXT</p>
             <p className="text-xs text-muted-foreground mt-1">Max file size: {formatFileSize(MAX_FILE_SIZE)}</p>
@@ -689,7 +702,17 @@ export default function FolderDetailPage() {
       {deleting && (
         <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+            <div className="relative w-16 h-16 mx-auto mb-4">
+            <svg className="w-16 h-16 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loader-gradient-folder" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#9333ea" />
+                </linearGradient>
+              </defs>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-folder)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+            </svg>
+          </div>
             <p className="text-lg font-semibold text-gray-900">Deleting {deleteTarget?.type || 'item'}...</p>
             <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
           </div>
@@ -808,7 +831,15 @@ export default function FolderDetailPage() {
                 <Button onClick={handleCreateNote} disabled={creatingNote}>
                   {creatingNote ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="loader-gradient-button" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#2563eb" />
+                            <stop offset="100%" stopColor="#9333ea" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-button)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                      </svg>
                       Creating...
                     </>
                   ) : (
@@ -854,7 +885,15 @@ export default function FolderDetailPage() {
                   <div className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
                     {uploading ? (
                       <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                        <svg className="w-8 h-8 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <defs>
+                            <linearGradient id="loader-gradient-upload" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#2563eb" />
+                              <stop offset="100%" stopColor="#9333ea" />
+                            </linearGradient>
+                          </defs>
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-upload)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+                        </svg>
                         <p className="text-sm text-muted-foreground">Uploading...</p>
                       </div>
                     ) : (
@@ -925,7 +964,15 @@ export default function FolderDetailPage() {
                 <Button onClick={handleCreateWhiteboard} disabled={creatingWhiteboard}>
                   {creatingWhiteboard ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="loader-gradient-button" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#2563eb" />
+                            <stop offset="100%" stopColor="#9333ea" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-button)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                      </svg>
                       Creating...
                     </>
                   ) : (
@@ -979,7 +1026,15 @@ export default function FolderDetailPage() {
                 <Button onClick={handleCreateSubfolder} disabled={creatingSubfolder}>
                   {creatingSubfolder ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="loader-gradient-button" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#2563eb" />
+                            <stop offset="100%" stopColor="#9333ea" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-button)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                      </svg>
                       Creating...
                     </>
                   ) : (
@@ -1348,7 +1403,15 @@ export default function FolderDetailPage() {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="loader-gradient-delete-btn-folder" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#9333ea" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-delete-btn-folder)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                  </svg>
                   Deleting...
                 </>
               ) : (

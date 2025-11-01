@@ -363,7 +363,15 @@ export function FlashcardGeneratorDialog({
                 ) : generationStatus.stage === 'success' ? (
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
                 ) : (
-                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="loader-gradient-flashcard-dialog" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#9333ea" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-flashcard-dialog)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+                  </svg>
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">

@@ -175,7 +175,17 @@ const Dashboard = () => {
     return (
       <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <svg className="w-16 h-16 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loader-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#9333ea" />
+                </linearGradient>
+              </defs>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+            </svg>
+          </div>
           <p className="text-lg font-semibold text-gray-900">Loading...</p>
           <p className="text-sm text-muted-foreground mt-2">Please wait</p>
         </div>
@@ -189,7 +199,17 @@ const Dashboard = () => {
       {deleting && (
         <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+            <div className="relative w-16 h-16 mx-auto mb-4">
+            <svg className="w-16 h-16 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loader-gradient-delete" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#9333ea" />
+                </linearGradient>
+              </defs>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-delete)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="50" strokeDashoffset="25"/>
+            </svg>
+          </div>
             <p className="text-lg font-semibold text-gray-900">Deleting folder...</p>
             <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
           </div>
@@ -285,7 +305,15 @@ const Dashboard = () => {
                 <Button onClick={handleCreateFolder} disabled={creatingFolder}>
                   {creatingFolder ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="loader-gradient-dashboard" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#2563eb" />
+                            <stop offset="100%" stopColor="#9333ea" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-dashboard)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                      </svg>
                       Creating...
                     </>
                   ) : (
@@ -446,7 +474,15 @@ const Dashboard = () => {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <svg className="w-4 h-4 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="loader-gradient-delete-btn" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#9333ea" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="url(#loader-gradient-delete-btn)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="40" strokeDashoffset="20"/>
+                  </svg>
                   Deleting...
                 </>
               ) : (
