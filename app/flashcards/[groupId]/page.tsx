@@ -5,7 +5,7 @@ import { useUser } from '@clerk/nextjs'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { FlashcardViewer } from '@/components/flashcard-viewer'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface FlashcardGroup {
@@ -130,25 +130,25 @@ export default function FlashcardGroupPage() {
     }
   }
 
-  if (!user) {
-    return <div>Loading...</div>
-  }
-
-  if (isLoading) {
+  if (!user || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-semibold text-gray-900">Loading...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+        </div>
       </div>
     )
   }
 
   if (!flashcardGroup) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Flashcard group not found</h1>
           <Link href="/dashboard">
-            <Button>Back to Dashboard</Button>
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">Back to Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -156,15 +156,14 @@ export default function FlashcardGroupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <Link href={`/dashboard/${flashcardGroup.folder_id}`}>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Back
+              <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600">
+                <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
           </div>

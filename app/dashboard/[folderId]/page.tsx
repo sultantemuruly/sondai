@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
-import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain, Maximize2, Minimize2, Loader2, Pencil, X, Check } from 'lucide-react'
+import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload, File, Brain, Maximize2, Minimize2, Loader2, Pencil, X, Check, ChevronRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FlashcardGeneratorDialog } from '@/components/flashcard-generator-dialog'
@@ -181,6 +181,8 @@ export default function FolderDetailPage() {
   const [editingItem, setEditingItem] = useState<{ type: 'folder' | 'file', id: number } | null>(null);
   const [editName, setEditName] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   useEffect(() => {
     const fetchFolderData = async () => {
@@ -455,6 +457,61 @@ export default function FolderDetailPage() {
     }
   };
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => {
+      const newCount = prev - 1;
+      if (newCount === 0) {
+        setIsDraggingOver(false);
+      }
+      return newCount;
+    });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    setDragCounter(0);
+
+    if (uploading || deleting) {
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) {
+      return;
+    }
+
+    // Process the first file (for now, we handle one at a time, but we can extend this)
+    const file = files[0];
+    handleFileUpload(file);
+
+    // If multiple files, show a message
+    if (files.length > 1) {
+      toast.info(`Uploading first file. Only one file at a time is supported.`, {
+        description: `Selected ${files.length} files, uploading ${file.name}...`,
+        duration: 3000,
+      });
+    }
+  };
+
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
@@ -586,10 +643,6 @@ export default function FolderDetailPage() {
     }
   };
 
-  if (!user) {
-    return <div>Loading...</div>;
-  }
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -599,32 +652,99 @@ export default function FolderDetailPage() {
     });
   };
 
+  // Show full-screen loader for initial loading or user not loaded
+  if (!user || isLoading) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-semibold text-gray-900">Loading...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50">
+    <div 
+      className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 relative"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag and Drop Overlay */}
+      {isDraggingOver && !uploading && !deleting && (
+        <div className="fixed inset-0 z-[90] bg-blue-50/95 backdrop-blur-sm flex items-center justify-center border-4 border-dashed border-blue-600">
+          <div className="text-center">
+            <Upload className="w-20 h-20 text-blue-600 mx-auto mb-4 animate-bounce" />
+            <p className="text-2xl font-semibold text-gray-900 mb-2">Drop files to upload</p>
+            <p className="text-sm text-muted-foreground">Supported: PDF, DOCX, PPTX, XLSX, Images, Videos, Audio, TXT</p>
+            <p className="text-xs text-muted-foreground mt-1">Max file size: {formatFileSize(MAX_FILE_SIZE)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Full Screen Deletion Loader */}
+      {deleting && (
+        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+            <p className="text-lg font-semibold text-gray-900">Deleting {deleteTarget?.type || 'item'}...</p>
+            <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Sondai
-                </span>
+      {!deleting && (
+        <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <Link href={folder?.parent_id ? `/dashboard/${folder.parent_id}` : '/dashboard'}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600">
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                </Link>
+                {folder?.parent_id && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-gray-900">
+                      Folders
+                    </Link>
+                  </>
+                )}
+                {folder && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        {folder.name || 'Folder'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {!folder && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Sondai
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
+      {!deleting && (
       <div className="container mx-auto px-6 py-8">
         {/* Folder Header */}
         <div className="mb-8">
@@ -734,7 +854,7 @@ export default function FolderDetailPage() {
                   <div className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
                     {uploading ? (
                       <div className="flex flex-col items-center gap-2">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                         <p className="text-sm text-muted-foreground">Uploading...</p>
                       </div>
                     ) : (
@@ -873,7 +993,7 @@ export default function FolderDetailPage() {
           {/* Specialized Actions */}
           <Dialog open={isFlashcardGeneratorOpen} onOpenChange={setIsFlashcardGeneratorOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
+              <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
                 <Brain className="w-5 h-5" />
                 Generate Flashcards
               </Button>
@@ -893,11 +1013,7 @@ export default function FolderDetailPage() {
         </div>
 
         {/* Content */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
+        {deleting ? null : (
           <>
             {/* Combined All Items Section */}
             <div>
@@ -927,11 +1043,11 @@ export default function FolderDetailPage() {
                       const isFlashcardGroup = item.type === 'flashcard_group';
                       
                       const colors = [
-                        { bg: 'from-orange-500 to-red-500', border: 'hover:border-orange-300', arrow: 'group-hover:text-orange-600' }, // Orange for folders
-                        { bg: 'from-blue-500 to-purple-500', border: 'hover:border-blue-300', arrow: 'group-hover:text-blue-600' }, // Blue for whiteboards
-                        { bg: 'from-green-500 to-emerald-500', border: 'hover:border-green-300', arrow: 'group-hover:text-green-600' }, // Green for notes
-                        { bg: 'from-purple-500 to-pink-500', border: 'hover:border-purple-300', arrow: 'group-hover:text-purple-600' }, // Purple for files
-                        { bg: 'from-indigo-500 to-purple-500', border: 'hover:border-indigo-300', arrow: 'group-hover:text-indigo-600' }, // Indigo for flashcard groups
+                        { bg: 'from-orange-600 to-red-600', border: 'hover:border-orange-300', arrow: 'group-hover:text-orange-600' }, // Orange for folders
+                        { bg: 'from-blue-600 to-purple-600', border: 'hover:border-blue-300', arrow: 'group-hover:text-blue-600' }, // Blue for whiteboards
+                        { bg: 'from-green-600 to-emerald-600', border: 'hover:border-green-300', arrow: 'group-hover:text-green-600' }, // Green for notes
+                        { bg: 'from-purple-600 to-pink-600', border: 'hover:border-purple-300', arrow: 'group-hover:text-purple-600' }, // Purple for files
+                        { bg: 'from-indigo-600 to-purple-600', border: 'hover:border-indigo-300', arrow: 'group-hover:text-indigo-600' }, // Indigo for flashcard groups
                       ];
                       
                       const colorIndex = isFolder ? 0 : isWhiteboard ? 1 : isNote ? 2 : isFile ? 3 : 4;
@@ -1208,6 +1324,7 @@ export default function FolderDetailPage() {
           </>
         )}
       </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={(open) => {

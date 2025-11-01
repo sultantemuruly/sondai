@@ -359,11 +359,11 @@ export function FlashcardGeneratorDialog({
             <div className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
               <div className="flex items-center gap-3">
                 {generationStatus.stage === 'error' ? (
-                  <AlertCircle className="w-5 h-5 text-red-500" />
+                  <AlertCircle className="w-5 h-5 text-red-600" />
                 ) : generationStatus.stage === 'success' ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
                 ) : (
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">

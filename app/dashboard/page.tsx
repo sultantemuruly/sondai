@@ -161,10 +161,6 @@ const Dashboard = () => {
     }
   };
 
-  if (!user) {
-    return <div>Loading...</div>;
-  }
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -174,35 +170,61 @@ const Dashboard = () => {
     });
   };
 
+  // Show full-screen loader for initial loading or user not loaded
+  if (!user || isLoading) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-semibold text-gray-900">Loading...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
-                  
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Sondai
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <UserButton afterSignOutUrl="/" />
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 relative">
+      {/* Full Screen Deletion Loader */}
+      {deleting && (
+        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+            <p className="text-lg font-semibold text-gray-900">Deleting folder...</p>
+            <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
           </div>
         </div>
-      </header>
+      )}
 
+      {/* Header */}
+      {!deleting && (
+        <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <Link href="/">
+                  <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600">
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                </Link>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    Sondai
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {!deleting && (
       <div className="container mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -276,11 +298,7 @@ const Dashboard = () => {
         </div>
 
         {/* Content */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : folders.length === 0 ? (
+        {folders.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50/50">
             <Folder className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No folders yet</h3>
@@ -305,7 +323,7 @@ const Dashboard = () => {
                 {editingFolderId === folder.id ? (
                   <Card className="p-6 border-2 border-blue-300 bg-gradient-to-br from-white to-gray-50">
                     <div className="flex items-start gap-4">
-                      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 shadow-lg">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
                         <Folder className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -358,7 +376,7 @@ const Dashboard = () => {
                     <Link href={`/dashboard/${folder.id}`}>
                       <Card className="p-6 hover:shadow-xl transition-all cursor-pointer group hover:border-blue-300 border-2 bg-gradient-to-br from-white to-gray-50">
                         <div className="flex items-start gap-4 pr-16">
-                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 group-hover:scale-110 transition-transform shadow-lg">
+                          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 group-hover:scale-110 transition-transform shadow-lg">
                             <Folder className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -404,6 +422,7 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={(open) => {

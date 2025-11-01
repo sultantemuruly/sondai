@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, ChevronRight, Loader2 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import '@excalidraw/excalidraw/index.css'
@@ -32,6 +32,7 @@ export default function WhiteboardEditorPage() {
   const whiteboardId = params.whiteboardId as string;
 
   const [whiteboard, setWhiteboard] = useState<Whiteboard | null>(null);
+  const [folder, setFolder] = useState<{ id: number; name: string; parent_id: number | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
@@ -61,6 +62,19 @@ export default function WhiteboardEditorPage() {
         if (response.ok) {
           const data = await response.json();
           setWhiteboard(data.whiteboard);
+          
+          // Fetch folder info if available
+          if (data.whiteboard.folder_id) {
+            try {
+              const folderResponse = await fetch(`/api/folders/${data.whiteboard.folder_id}`);
+              if (folderResponse.ok) {
+                const folderData = await folderResponse.json();
+                setFolder(folderData.folder);
+              }
+            } catch (error) {
+              console.error('Failed to fetch folder:', error);
+            }
+          }
           
           // Parse the Excalidraw content
           try {
@@ -147,25 +161,25 @@ export default function WhiteboardEditorPage() {
     }
   };
 
-  if (!user) {
-    return <div>Loading...</div>;
-  }
-
-  if (isLoading) {
+  if (!user || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-lg font-semibold text-gray-900">Loading...</p>
+          <p className="text-sm text-muted-foreground mt-2">Please wait</p>
+        </div>
       </div>
     );
   }
 
   if (!whiteboard) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Whiteboard not found</h1>
           <Link href="/dashboard">
-            <Button>Back to Dashboard</Button>
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">Back to Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -173,18 +187,26 @@ export default function WhiteboardEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Link href={`/dashboard`}>
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
+              <Link href={whiteboard.folder_id ? `/dashboard/${whiteboard.folder_id}` : `/dashboard`}>
+                <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-blue-50 hover:text-blue-600">
+                  <ArrowLeft className="w-5 h-5" />
                 </Button>
               </Link>
+              {folder && (
+                <>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <Link href={`/dashboard/${folder.id}`} className="text-sm text-muted-foreground hover:text-gray-900">
+                    {folder.name}
+                  </Link>
+                </>
+              )}
+              <ChevronRight className="w-4 h-4 text-gray-400" />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">{whiteboard.title}</h1>
               </div>
