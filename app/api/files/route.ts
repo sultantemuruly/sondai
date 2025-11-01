@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { files, users } from "@/db/schema";
 import { uploadFileToAzure, generateSASUrl } from "@/lib/azure";
 import { eq } from "drizzle-orm";
+import { MAX_FILE_SIZE, formatFileSize } from "@/lib/file-limits";
 
 export const dynamic = "force-dynamic";
 export const runtime = 'nodejs'; // Required for file uploads
@@ -96,10 +97,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "folder_id is required" }, { status: 400 });
     }
 
-    // Check file size (max 100MB)
-    const maxSize = 100 * 1024 * 1024; // 100MB in bytes
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: "File size exceeds 100MB limit" }, { status: 400 });
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { 
+          error: `File size (${formatFileSize(file.size)}) exceeds the maximum limit of ${formatFileSize(MAX_FILE_SIZE)}. Please upload a smaller file.` 
+        },
+        { status: 400 }
+      );
     }
 
     // Upload to Azure Blob Storage

@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { MAX_CUMULATIVE_SIZE_FOR_FLASHCARDS, formatFileSize, validateCumulativeFileSize } from '@/lib/file-limits'
 
 interface ContentItem {
   type: 'note' | 'file' | 'whiteboard'
   id: number
   title: string
+  size?: number
 }
 
 interface FlashcardGeneratorDialogProps {
@@ -20,7 +22,7 @@ interface FlashcardGeneratorDialogProps {
   folderId: number
   availableItems: {
     notes: Array<{ id: number; title: string }>
-    files: Array<{ id: number; name: string }>
+    files: Array<{ id: number; name: string; size?: number }>
     whiteboards: Array<{ id: number; title: string }>
   }
   onSuccess?: () => void
@@ -43,12 +45,19 @@ export function FlashcardGeneratorDialog({
     message?: string
   }>({ stage: 'idle' })
 
-  // Combine all available items
+  // Combine all available items with file sizes
   const allItems: ContentItem[] = [
-    ...availableItems.notes.map((n) => ({ type: 'note' as const, id: n.id, title: n.title })),
-    ...availableItems.files.map((f) => ({ type: 'file' as const, id: f.id, title: f.name })),
-    ...availableItems.whiteboards.map((w) => ({ type: 'whiteboard' as const, id: w.id, title: w.title })),
+    ...availableItems.notes.map((n) => ({ type: 'note' as const, id: n.id, title: n.title, size: 0 })),
+    ...availableItems.files.map((f) => ({ type: 'file' as const, id: f.id, title: f.name, size: f.size || 0 })),
+    ...availableItems.whiteboards.map((w) => ({ type: 'whiteboard' as const, id: w.id, title: w.title, size: 0 })),
   ]
+
+  // Calculate cumulative file size for selected files
+  const selectedFileSize = selectedItems
+    .filter(item => item.type === 'file')
+    .reduce((sum, item) => sum + (item.size || 0), 0)
+
+  const sizeValidation = validateCumulativeFileSize(selectedFileSize)
 
   const toggleItem = (item: ContentItem) => {
     setSelectedItems((prev) => {
@@ -69,6 +78,17 @@ export function FlashcardGeneratorDialog({
     if (selectedItems.length === 0) {
       toast.error('Please select at least one item to generate flashcards from')
       return
+    }
+
+    // Validate cumulative file size
+    const fileItems = selectedItems.filter(item => item.type === 'file')
+    if (fileItems.length > 0) {
+      const totalSize = fileItems.reduce((sum, item) => sum + (item.size || 0), 0)
+      const validation = validateCumulativeFileSize(totalSize)
+      if (!validation.valid) {
+        toast.error(validation.error || 'File size limit exceeded')
+        return
+      }
     }
 
     // Validate target count
@@ -195,6 +215,36 @@ export function FlashcardGeneratorDialog({
             </p>
           </div>
 
+          {/* File Size Warning */}
+          {selectedItems.some(item => item.type === 'file') && (
+            <div className={`p-3 rounded-lg border-2 ${
+              sizeValidation.valid
+                ? selectedFileSize > MAX_CUMULATIVE_SIZE_FOR_FLASHCARDS * 0.8
+                  ? 'border-yellow-300 bg-yellow-50'
+                  : 'border-green-300 bg-green-50'
+                : 'border-red-300 bg-red-50'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  Total File Size:
+                </span>
+                <span className={`text-sm font-bold ${
+                  sizeValidation.valid ? 'text-gray-900' : 'text-red-600'
+                }`}>
+                  {formatFileSize(selectedFileSize)} / {formatFileSize(MAX_CUMULATIVE_SIZE_FOR_FLASHCARDS)}
+                </span>
+              </div>
+              {!sizeValidation.valid && (
+                <p className="text-xs text-red-600 mt-1">{sizeValidation.error}</p>
+              )}
+              {sizeValidation.valid && selectedFileSize > MAX_CUMULATIVE_SIZE_FOR_FLASHCARDS * 0.8 && (
+                <p className="text-xs text-yellow-700 mt-1">
+                  Approaching file size limit. Consider selecting fewer files.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Available Items */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -231,7 +281,12 @@ export function FlashcardGeneratorDialog({
                         <FileText className="w-4 h-4 text-gray-500" />
                         <div className="flex-1">
                           <p className="font-medium text-sm text-gray-900">{item.title}</p>
-                          <p className="text-xs text-gray-500 capitalize">{item.type}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-gray-500 capitalize">{item.type}</p>
+                            {item.type === 'file' && item.size && (
+                              <span className="text-xs text-gray-400">({formatFileSize(item.size)})</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Card>
@@ -279,7 +334,7 @@ export function FlashcardGeneratorDialog({
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={isGenerating || selectedItems.length === 0 || !groupName.trim()}
+            disabled={isGenerating || selectedItems.length === 0 || !groupName.trim() || !sizeValidation.valid}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           >
             {isGenerating ? (

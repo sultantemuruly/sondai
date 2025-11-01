@@ -12,6 +12,7 @@ import { Folder, Plus, ArrowLeft, Sparkles, FileText, ArrowRight, Trash2, Upload
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FlashcardGeneratorDialog } from '@/components/flashcard-generator-dialog'
+import { MAX_FILE_SIZE, formatFileSize } from '@/lib/file-limits'
 
 interface Folder {
   id: number;
@@ -378,6 +379,23 @@ export default function FolderDetailPage() {
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
+    // Check file size first
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(
+        `File too large`,
+        {
+          description: `File size (${formatFileSize(file.size)}) exceeds the maximum limit of ${formatFileSize(MAX_FILE_SIZE)}. Please upload a smaller file.`,
+          duration: 6000,
+        }
+      );
+      // Reset the file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      return;
+    }
+
     // Check if file type is supported
     if (!isSupportedFileType(file)) {
       const fileExtension = file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN';
@@ -624,7 +642,7 @@ export default function FolderDetailPage() {
               <DialogHeader>
                 <DialogTitle>Upload File</DialogTitle>
                 <DialogDescription>
-                  Upload a file to this folder. Supported formats can be previewed and used for flashcard generation.
+                  Upload a file to this folder. Maximum file size: {formatFileSize(MAX_FILE_SIZE)}. Supported formats can be previewed and used for flashcard generation.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">

@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import { generateValidatedFlashcards } from '@/lib/agents/flashcard-agents';
 import { uploadTextContentToAzure, getTextContentFromAzure } from '@/lib/azure';
 import { extractTextFromFile } from '@/lib/file-extraction';
+import { validateCumulativeFileSize } from '@/lib/file-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -161,6 +162,34 @@ export async function POST(req: NextRequest) {
 
     if (folderExists.length === 0) {
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+
+    // Validate cumulative file sizes for flashcard generation
+    const fileItems = items.filter(item => item.type === 'file');
+    if (fileItems.length > 0) {
+      const fileIds = fileItems.map(item => item.id);
+      
+      // Get file sizes for all selected files
+      const matchingFiles = await Promise.all(
+        fileIds.map(async (fileId) => {
+          const file = await db
+            .select({ size: files.size })
+            .from(files)
+            .where(and(eq(files.id, fileId), eq(files.user_id, userId)))
+            .limit(1);
+          return file[0]?.size || 0;
+        })
+      );
+
+      const totalFileSize = matchingFiles.reduce((sum, size) => sum + size, 0);
+      const sizeValidation = validateCumulativeFileSize(totalFileSize);
+      
+      if (!sizeValidation.valid) {
+        return NextResponse.json(
+          { error: sizeValidation.error },
+          { status: 400 }
+        );
+      }
     }
 
     // Extract content from selected items
